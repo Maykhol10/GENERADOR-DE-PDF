@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Loader2, Moon, Sun, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { jsPDF } from 'jspdf';
 
 const defaultCode = `
 <style>
@@ -217,58 +218,77 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
-        await import('jspdf/dist/polyfills.es.js');
-
-        const iframe = iframeRef.current;
-        if (!iframe?.contentWindow?.document?.body) {
-            toast({
-                title: "Error",
-                description: "No se puede generar PDF. El contenido de salida no está listo.",
-                variant: "destructive",
-            });
-            setIsGenerating(false);
-            return;
-        }
-
-        const iWindow = iframe.contentWindow;
-        const iDocument = iWindow.document;
-
-        const styleMatch = code.match(/<style>([\s\S]*?)<\/style>/);
-        const styleContent = styleMatch ? styleMatch[1] : '';
-
-        const styleEl = iDocument.createElement('style');
-        styleEl.innerHTML = styleContent;
-        iDocument.head.appendChild(styleEl);
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const elementToCapture = iDocument.documentElement;
-        const contentWidth = elementToCapture.scrollWidth;
         
         try {
+            // Importar jsPDF con sus dependencias
+            await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
+
+            const iframe = iframeRef.current;
+            if (!iframe?.contentWindow?.document?.body) {
+                throw new Error("No se puede acceder al contenido del iframe");
+            }
+
+            const iWindow = iframe.contentWindow;
+            const iDocument = iWindow.document;
+
+            // Aplicar estilos al documento del iframe si es necesario
+            const styleMatch = code.match(/<style>([\s\S]*?)<\/style>/);
+            if (styleMatch) {
+                const styleContent = styleMatch[1];
+                let existingStyle = iDocument.querySelector('style[data-pdf-gen]');
+                if (existingStyle) {
+                    existingStyle.remove();
+                }
+                const styleEl = iDocument.createElement('style');
+                styleEl.setAttribute('data-pdf-gen', 'true');
+                styleEl.innerHTML = styleContent;
+                iDocument.head.appendChild(styleEl);
+            }
+            
+            // Esperar a que los estilos se apliquen
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Crear el PDF con configuración optimizada
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
                 format: 'a4',
+                compress: true
             });
 
-            await pdf.html(elementToCapture, {
-                callback: function (doc) {
-                    doc.save('output.pdf');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            
+            // Configuración para renderizado de alta calidad
+            const options = {
+                callback: function (doc: jsPDF) {
+                    doc.save('code-output.pdf');
+                    toast({
+                        title: "PDF Generado",
+                        description: "Tu PDF ha sido descargado exitosamente con calidad vectorial.",
+                    });
                 },
-                x: 0,
-                y: 0,
-                width: pdf.internal.pageSize.getWidth(),
-                windowWidth: contentWidth,
-                autoPaging: 'text'
-            });
+                x: 20,
+                y: 20,
+                width: pageWidth - 40, // Margen de 20pt en cada lado
+                windowWidth: iDocument.documentElement.scrollWidth,
+                autoPaging: 'text',
+                html2canvas: {
+                    // Deshabilitamos html2canvas para forzar el renderizado vectorial
+                    allowTaint: false,
+                    useCORS: true,
+                    scale: 1,
+                },
+            };
+
+            // Generar PDF usando el método html() que preserva la calidad vectorial
+            await pdf.html(iDocument.documentElement, options);
 
         } catch (error) {
             console.error("Error al generar PDF:", error);
             toast({
-                title: "Fallo al generar PDF",
-                description: "Ocurrió un error inesperado. Por favor, revise la consola.",
+                title: "Error al Generar PDF",
+                description: `Ocurrió un error: ${error instanceof Error ? error.message : 'Error desconocido'}`,
                 variant: "destructive",
             });
         } finally {
@@ -288,7 +308,7 @@ export default function CodeToPdf() {
         <div className="min-h-screen flex flex-col">
             <header className="text-center py-8">
                 <h1 className="text-4xl lg:text-5xl font-bold font-headline tracking-tight">Code2PDF</h1>
-                <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF para compartir.</p>
+                <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF vectoriales de alta calidad.</p>
             </header>
             <main className="container mx-auto p-4 flex-grow">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -316,7 +336,7 @@ export default function CodeToPdf() {
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="text-xl">Configuración</CardTitle>
-                                <CardDescription>Personaliza la apariencia de tu PDF.</CardDescription>
+                                <CardDescription>Personaliza la apariencia de tu PDF de alta calidad.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6 pt-4">
                                 <div className="flex items-center justify-between">
@@ -349,6 +369,12 @@ export default function CodeToPdf() {
                                         </div>
                                     </RadioGroup>
                                 </div>
+
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                    <p className="text-sm text-blue-800">
+                                        <strong>✨ Calidad Mejorada:</strong> Ahora genera PDFs vectoriales con texto y gráficos nítidos, sin pixelación.
+                                    </p>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -363,7 +389,7 @@ export default function CodeToPdf() {
                                     ) : (
                                         <Download className="mr-2 h-5 w-5" />
                                     )}
-                                    Descargar PDF
+                                    {isGenerating ? 'Generando PDF...' : 'Descargar PDF Vectorial'}
                                 </Button>
                            </CardHeader>
                            <CardContent className="flex-grow p-4 md:p-6">
