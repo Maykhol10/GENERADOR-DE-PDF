@@ -2,23 +2,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomOneDark, github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
-import ts from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
-import python from 'react-syntax-highlighter/dist/esm/languages/hljs/python';
-import java from 'react-syntax-highlighter/dist/esm/languages/hljs/java';
-import csharp from 'react-syntax-highlighter/dist/esm/languages/hljs/csharp';
-import cpp from 'react-syntax-highlighter/dist/esm/languages/hljs/cpp';
-import php from 'react-syntax-highlighter/dist/esm/languages/hljs/php';
-import ruby from 'react-syntax-highlighter/dist/esm/languages/hljs/ruby';
-import go from 'react-syntax-highlighter/dist/esm/languages/hljs/go';
-import rust from 'react-syntax-highlighter/dist/esm/languages/hljs/rust';
-import xml from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'; // for HTML
-import css from 'react-syntax-highlighter/dist/esm/languages/hljs/css';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-import sql from 'react-syntax-highlighter/dist/esm/languages/hljs/sql';
-import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -29,26 +12,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Loader2, Moon, Sun, Code, Eye } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-// Register languages for syntax highlighting
-SyntaxHighlighter.registerLanguage('javascript', js);
-SyntaxHighlighter.registerLanguage('typescript', ts);
-SyntaxHighlighter.registerLanguage('python', python);
-SyntaxHighlighter.registerLanguage('java', java);
-SyntaxHighlighter.registerLanguage('csharp', csharp);
-SyntaxHighlighter.registerLanguage('cpp', cpp);
-SyntaxHighlighter.registerLanguage('php', php);
-SyntaxHighlighter.registerLanguage('ruby', ruby);
-SyntaxHighlighter.registerLanguage('go', go);
-SyntaxHighlighter.registerLanguage('rust', rust);
-SyntaxHighlighter.registerLanguage('html', xml);
-SyntaxHighlighter.registerLanguage('css', css);
-SyntaxHighlighter.registerLanguage('json', json);
-SyntaxHighlighter.registerLanguage('sql', sql);
-SyntaxHighlighter.registerLanguage('bash', bash);
 
 const defaultCode = `
 <style>
@@ -238,51 +203,45 @@ const defaultCode = `
 
 export default function CodeToPdf() {
     const [code, setCode] = useState<string>(defaultCode);
-    const [fontSize, setFontSize] = useState<number>(14);
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
-    const [activeTab, setActiveTab] = useState("output");
     const [isIframeLoaded, setIsIframeLoaded] = useState(false);
 
-
-    const previewRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-        // When code changes, we reset the loaded state
-        // and when the tab is 'output'
-        if (activeTab === 'output') {
-          setIsIframeLoaded(false);
-        }
-    }, [code, activeTab]);
+      // Every time the code changes, we set the iframe as not loaded.
+      // The `onLoad` event on the iframe will set it back to true.
+      setIsIframeLoaded(false);
+    }, [code]);
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
-
-        let elementToCapture: HTMLElement | null = null;
-
-        if (activeTab === 'code') {
-            elementToCapture = previewRef.current;
-        } else if (activeTab === 'output') {
-            if (iframeRef.current && isIframeLoaded) {
-                 const iframeDoc = iframeRef.current.contentDocument;
-                 if(iframeDoc) {
-                    elementToCapture = iframeDoc.body;
-                 }
-            }
-        }
         
-        if (!elementToCapture) {
+        if (!iframeRef.current || !isIframeLoaded) {
              toast({
                 title: "Error",
-                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available or still loading.",
+                description: "Cannot generate PDF. Output not available or still loading.",
                 variant: "destructive",
             });
             setIsGenerating(false);
             return;
         }
+        
+        const iframeDoc = iframeRef.current.contentDocument;
+        if (!iframeDoc || !iframeDoc.body) {
+            toast({
+                title: "Error",
+                description: "Cannot access output content to generate PDF.",
+                variant: "destructive",
+            });
+            setIsGenerating(false);
+            return;
+        }
+
+        const elementToCapture = iframeDoc.body;
 
         try {
             const canvas = await html2canvas(elementToCapture, {
@@ -315,7 +274,7 @@ export default function CodeToPdf() {
             const y = (pdfHeight - newImgHeight) / 2;
 
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-            pdf.save(`${activeTab}-output.pdf`);
+            pdf.save(`output.pdf`);
         } catch (error) {
             console.error("Error generating PDF:", error);
             toast({
@@ -334,8 +293,6 @@ export default function CodeToPdf() {
         document.documentElement.classList.toggle('dark', checked);
     };
 
-    const highlighterStyle = theme === 'light' ? github : atomOneDark;
-    const previewBg = theme === 'light' ? 'bg-[#f6f8fa]' : 'bg-[#282c34]';
     const outputBg = theme === 'light' ? 'bg-white' : 'bg-gray-800';
 
     return (
@@ -381,16 +338,7 @@ export default function CodeToPdf() {
                                         <Moon className="h-5 w-5" />
                                     </div>
                                 </div>
-                                <div className="space-y-3">
-                                    <Label className="font-medium">Tamaño de Fuente (Código): <span className="text-primary font-semibold">{fontSize}px</span></Label>
-                                    <Slider
-                                        value={[fontSize]}
-                                        onValueChange={(value) => setFontSize(value[0])}
-                                        min={8}
-                                        max={24}
-                                        step={1}
-                                    />
-                                </div>
+                               
                                 <div className="space-y-3">
                                     <Label className="font-medium">Diseño del PDF</Label>
                                     <RadioGroup
@@ -414,69 +362,35 @@ export default function CodeToPdf() {
 
                     <div className="lg:col-span-3">
                         <Card className="shadow-lg h-full flex flex-col">
-                           <CardHeader>
-                                <div className="flex items-center justify-between">
-                                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                    <div className="flex items-center justify-between border-b">
-                                        <TabsList>
-                                            <TabsTrigger value="code"><Code className="mr-2 h-4 w-4"/>Código</TabsTrigger>
-                                            <TabsTrigger value="output"><Eye className="mr-2 h-4 w-4"/>Salida</TabsTrigger>
-                                        </TabsList>
-                                         <Button onClick={handleGeneratePdf} disabled={isGenerating || (activeTab === 'output' && !isIframeLoaded)} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
-                                            {isGenerating ? (
-                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                            ) : (
-                                                <Download className="mr-2 h-5 w-5" />
-                                            )}
-                                            Descargar PDF
-                                        </Button>
-                                    </div>
-                                    <CardContent className="flex-grow p-4 md:p-6 mt-4">
-                                        <TabsContent value="code">
-                                            <div ref={previewRef} className={`p-6 rounded-lg overflow-auto transition-all duration-300 ${previewBg}`}>
-                                                <SyntaxHighlighter
-                                                    language="python"
-                                                    className="font-code"
-                                                    style={highlighterStyle}
-                                                    showLineNumbers
-                                                    wrapLines={true}
-                                                    lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
-                                                    customStyle={{
-                                                        fontSize: `${fontSize}px`,
-                                                        margin: 0,
-                                                        backgroundColor: 'transparent',
-                                                        transition: 'font-size 0.3s ease',
-                                                    }}
-                                                    codeTagProps={{
-                                                        className: "font-code"
-                                                    }}
-                                                >
-                                                    {code}
-                                                </SyntaxHighlighter>
-                                            </div>
-                                        </TabsContent>
-                                        <TabsContent value="output">
-                                            <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
-                                                 <iframe
-                                                    key={code}
-                                                    ref={iframeRef}
-                                                    srcDoc={code}
-                                                    title="output"
-                                                    sandbox="allow-scripts allow-same-origin"
-                                                    frameBorder="0"
-                                                    width="100%"
-                                                    height="500px"
-                                                    className="rounded-md"
-                                                    onLoad={() => {
-                                                        setIsIframeLoaded(true);
-                                                    }}
-                                                  />
-                                            </div>
-                                        </TabsContent>
-                                    </CardContent>
-                                 </Tabs>
+                           <CardHeader className="flex-row items-center justify-between border-b">
+                                <div className="flex items-center gap-2">
+                                    <Eye className="h-5 w-5"/>
+                                    <CardTitle className="text-xl">Salida</CardTitle>
                                 </div>
+                                <Button onClick={handleGeneratePdf} disabled={isGenerating || !isIframeLoaded} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
+                                    {isGenerating ? (
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <Download className="mr-2 h-5 w-5" />
+                                    )}
+                                    Descargar PDF
+                                </Button>
                            </CardHeader>
+                           <CardContent className="flex-grow p-4 md:p-6">
+                                <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
+                                        <iframe
+                                        ref={iframeRef}
+                                        srcDoc={code}
+                                        title="output"
+                                        sandbox="allow-scripts allow-same-origin"
+                                        frameBorder="0"
+                                        width="100%"
+                                        height="500px"
+                                        className="rounded-md"
+                                        onLoad={() => setIsIframeLoaded(true)}
+                                        />
+                                </div>
+                           </CardContent>
                         </Card>
                     </div>
                 </div>
@@ -484,3 +398,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
