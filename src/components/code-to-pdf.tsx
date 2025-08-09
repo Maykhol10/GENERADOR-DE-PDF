@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef } from 'react';
@@ -303,6 +302,7 @@ export default function CodeToPdf() {
     };
 
     const outputBg = theme === 'light' ? 'bg-white' : 'bg-gray-800';
+    const a4AspectRatio = orientation === 'portrait' ? '1 / 1.414' : '1.414 / 1';
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -400,9 +400,12 @@ export default function CodeToPdf() {
                                         title="output"
                                         sandbox="allow-scripts allow-same-origin"
                                         frameBorder="0"
-                                        width="100%"
                                         className="rounded-md w-full"
-                                        style={{height: '60vh'}}
+                                        style={{
+                                            aspectRatio: a4AspectRatio,
+                                            height: 'auto',
+                                            maxHeight: '70vh'
+                                        }}
                                     />
                                 </div>
                            </CardContent>
