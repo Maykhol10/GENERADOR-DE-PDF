@@ -256,21 +256,47 @@ export default function CodeToPdf() {
     }, [code]);
 
     const handleGeneratePdf = async () => {
+        console.log("--- Iniciando generación de PDF ---");
+        console.log("Pestaña activa:", activeTab);
+
         let elementToCapture: HTMLElement | null = null;
+
         if (activeTab === 'code') {
+            console.log("Modo: Captura de código");
             elementToCapture = previewRef.current;
-        } else if (activeTab === 'output' && iframeRef.current) {
-            // Wait for iframe to be loaded
-            if(isIframeLoading) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+            console.log("Elemento a capturar (código):", elementToCapture);
+        } else if (activeTab === 'output') {
+            console.log("Modo: Captura de salida (output)");
+            console.log("Referencia del iframe:", iframeRef.current);
+
+            if (iframeRef.current) {
+                if (isIframeLoading) {
+                    console.log("El Iframe todavía está cargando, esperando 500ms...");
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    console.log("Espera finalizada.");
+                }
+                try {
+                    elementToCapture = iframeRef.current.contentDocument?.body || null;
+                    console.log("Documento del iframe:", iframeRef.current.contentDocument);
+                    console.log("Cuerpo del iframe (elemento a capturar):", elementToCapture);
+                } catch (e) {
+                    console.error("Error al acceder al contenido del iframe:", e);
+                    toast({
+                        title: "Error de seguridad",
+                        description: "No se pudo acceder al contenido del iframe por políticas de seguridad del navegador.",
+                        variant: "destructive",
+                    });
+                    setIsGenerating(false);
+                    return;
+                }
             }
-            elementToCapture = iframeRef.current.contentDocument?.body || null;
         }
 
         if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
+            console.error("Fallo de la validación: No se encontró elemento a capturar o el código está vacío.");
             toast({
                 title: "Error",
-                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
+                description: activeTab === 'code' ? "No se puede generar PDF. Por favor, ingrese algo de código." : "No se puede generar PDF. Salida no disponible.",
                 variant: "destructive",
             });
             return;
@@ -278,13 +304,16 @@ export default function CodeToPdf() {
 
         setIsGenerating(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 500)); // Extra delay for render
+            console.log("Iniciando html2canvas sobre el elemento:", elementToCapture);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Delay extra para el renderizado
 
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
                 scale: 2,
                 allowTaint: true,
             });
+            console.log("html2canvas completado exitosamente.");
+
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -298,7 +327,7 @@ export default function CodeToPdf() {
             const imgHeight = canvas.height;
             const ratio = imgWidth / imgHeight;
 
-            let newImgWidth = pdfWidth - 20; // with padding
+            let newImgWidth = pdfWidth - 20; // con padding
             let newImgHeight = newImgWidth / ratio;
             if (newImgHeight > pdfHeight - 20) {
                 newImgHeight = pdfHeight - 20;
@@ -308,14 +337,16 @@ export default function CodeToPdf() {
             const y = (pdfHeight - newImgHeight) / 2;
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
             pdf.save(`${activeTab}-output.pdf`);
+            console.log("PDF guardado exitosamente.");
         } catch (error) {
-            console.error("Error generating PDF:", error);
+            console.error("Error generando PDF:", error);
             toast({
-                title: "PDF Generation Failed",
-                description: "An unexpected error occurred. Please try again.",
+                title: "Fallo en la generación de PDF",
+                description: "Ocurrió un error inesperado. Por favor, inténtelo de nuevo.",
                 variant: "destructive",
             });
         } finally {
+            console.log("--- Finalizando generación de PDF ---");
             setIsGenerating(false);
         }
     };
@@ -334,21 +365,21 @@ export default function CodeToPdf() {
         <div className="min-h-screen flex flex-col">
             <header className="text-center py-8">
                 <h1 className="text-4xl lg:text-5xl font-bold font-headline tracking-tight">Code2PDF</h1>
-                <p className="text-muted-foreground mt-2 text-lg">Convert your code snippets into beautiful, shareable PDFs.</p>
+                <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF para compartir.</p>
             </header>
             <main className="container mx-auto p-4 flex-grow">
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                     <div className="lg:col-span-2 space-y-6">
                         <Card className="shadow-lg">
                             <CardHeader>
-                                <CardTitle className="text-xl">Your Code</CardTitle>
-                                <CardDescription>Paste your code here. HTML/JS is rendered in the Output tab. Python is not executed.</CardDescription>
+                                <CardTitle className="text-xl">Tu Código</CardTitle>
+                                <CardDescription>Pega tu código aquí. El HTML/JS se renderiza en la pestaña "Salida". Python no se ejecuta.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Textarea
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    placeholder="Paste your code here..."
+                                    placeholder="Pega tu código aquí..."
                                     className="h-96 font-code text-sm rounded-md transition-shadow duration-300 focus:shadow-outline"
                                     rows={20}
                                 />
@@ -357,12 +388,12 @@ export default function CodeToPdf() {
 
                         <Card className="shadow-lg">
                             <CardHeader>
-                                <CardTitle className="text-xl">Settings</CardTitle>
-                                <CardDescription>Customize the look of your PDF.</CardDescription>
+                                <CardTitle className="text-xl">Configuración</CardTitle>
+                                <CardDescription>Personaliza la apariencia de tu PDF.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6 pt-4">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="theme-switch" className="font-medium">Theme</Label>
+                                    <Label htmlFor="theme-switch" className="font-medium">Tema</Label>
                                     <div className="flex items-center gap-2 text-muted-foreground">
                                         <Sun className="h-5 w-5" />
                                         <Switch
@@ -374,7 +405,7 @@ export default function CodeToPdf() {
                                     </div>
                                 </div>
                                 <div className="space-y-3">
-                                    <Label className="font-medium">Font Size (Code): <span className="text-primary font-semibold">{fontSize}px</span></Label>
+                                    <Label className="font-medium">Tamaño de Fuente (Código): <span className="text-primary font-semibold">{fontSize}px</span></Label>
                                     <Slider
                                         value={[fontSize]}
                                         onValueChange={(value) => setFontSize(value[0])}
@@ -384,7 +415,7 @@ export default function CodeToPdf() {
                                     />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label className="font-medium">PDF Layout</Label>
+                                    <Label className="font-medium">Diseño del PDF</Label>
                                     <RadioGroup
                                         value={orientation}
                                         onValueChange={(value: 'portrait' | 'landscape') => setOrientation(value)}
@@ -392,11 +423,11 @@ export default function CodeToPdf() {
                                     >
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="portrait" id="portrait" />
-                                            <Label htmlFor="portrait">Portrait</Label>
+                                            <Label htmlFor="portrait">Vertical</Label>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="landscape" id="landscape" />
-                                            <Label htmlFor="landscape">Landscape</Label>
+                                            <Label htmlFor="landscape">Horizontal</Label>
                                         </div>
                                     </RadioGroup>
                                 </div>
@@ -411,8 +442,8 @@ export default function CodeToPdf() {
                                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                                     <div className="flex items-center justify-between border-b">
                                         <TabsList>
-                                            <TabsTrigger value="code"><Code className="mr-2 h-4 w-4"/>Code</TabsTrigger>
-                                            <TabsTrigger value="output"><Eye className="mr-2 h-4 w-4"/>Output</TabsTrigger>
+                                            <TabsTrigger value="code"><Code className="mr-2 h-4 w-4"/>Código</TabsTrigger>
+                                            <TabsTrigger value="output"><Eye className="mr-2 h-4 w-4"/>Salida</TabsTrigger>
                                         </TabsList>
                                          <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
                                             {isGenerating ? (
@@ -420,7 +451,7 @@ export default function CodeToPdf() {
                                             ) : (
                                                 <Download className="mr-2 h-5 w-5" />
                                             )}
-                                            Download PDF
+                                            Descargar PDF
                                         </Button>
                                     </div>
                                     <CardContent className="flex-grow p-4 md:p-6 mt-4">
@@ -474,3 +505,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
