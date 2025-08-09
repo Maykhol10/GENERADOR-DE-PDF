@@ -252,68 +252,57 @@ export default function CodeToPdf() {
 
     useEffect(() => {
         setIsIframeLoading(true);
+        // Re-render iframe when code changes
         setIframeKey(prevKey => prevKey + 1);
     }, [code]);
 
     const handleGeneratePdf = async () => {
-        console.log("--- Iniciando generación de PDF ---");
-        console.log("Pestaña activa:", activeTab);
+        setIsGenerating(true);
+        console.log("--- Starting PDF generation ---");
+        console.log("Active tab:", activeTab);
 
         let elementToCapture: HTMLElement | null = null;
+        let captureSuccess = false;
 
         if (activeTab === 'code') {
-            console.log("Modo: Captura de código");
+            console.log("Mode: Code capture");
             elementToCapture = previewRef.current;
-            console.log("Elemento a capturar (código):", elementToCapture);
         } else if (activeTab === 'output') {
-            console.log("Modo: Captura de salida (output)");
-            console.log("Referencia del iframe:", iframeRef.current);
-
+            console.log("Mode: Output capture");
             if (iframeRef.current) {
-                if (isIframeLoading) {
-                    console.log("El Iframe todavía está cargando, esperando 500ms...");
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    console.log("Espera finalizada.");
-                }
                 try {
+                    // Accessing contentDocument can be tricky due to timing
                     elementToCapture = iframeRef.current.contentDocument?.body || null;
-                    console.log("Documento del iframe:", iframeRef.current.contentDocument);
-                    console.log("Cuerpo del iframe (elemento a capturar):", elementToCapture);
                 } catch (e) {
-                    console.error("Error al acceder al contenido del iframe:", e);
-                    toast({
-                        title: "Error de seguridad",
-                        description: "No se pudo acceder al contenido del iframe por políticas de seguridad del navegador.",
-                        variant: "destructive",
-                    });
-                    setIsGenerating(false);
-                    return;
+                     console.error("Security error accessing iframe content:", e);
                 }
             }
         }
+        
+        console.log("Initial element to capture:", elementToCapture);
 
         if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
-            console.error("Fallo de la validación: No se encontró elemento a capturar o el código está vacío.");
-            toast({
+             toast({
                 title: "Error",
-                description: activeTab === 'code' ? "No se puede generar PDF. Por favor, ingrese algo de código." : "No se puede generar PDF. Salida no disponible.",
+                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
                 variant: "destructive",
             });
+            setIsGenerating(false);
             return;
         }
 
-        setIsGenerating(true);
         try {
-            console.log("Iniciando html2canvas sobre el elemento:", elementToCapture);
-            await new Promise(resolve => setTimeout(resolve, 500)); // Delay extra para el renderizado
+            console.log("Capturing element with html2canvas:", elementToCapture);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Extra delay for rendering
 
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
                 scale: 2,
                 allowTaint: true,
+                logging: true,
             });
-            console.log("html2canvas completado exitosamente.");
 
+            console.log("html2canvas completed successfully.");
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -321,13 +310,14 @@ export default function CodeToPdf() {
                 format: 'a4',
                 hotfixes: ['px_scaling'],
             });
+
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
             const imgWidth = canvas.width;
             const imgHeight = canvas.height;
             const ratio = imgWidth / imgHeight;
 
-            let newImgWidth = pdfWidth - 20; // con padding
+            let newImgWidth = pdfWidth - 20; // with padding
             let newImgHeight = newImgWidth / ratio;
             if (newImgHeight > pdfHeight - 20) {
                 newImgHeight = pdfHeight - 20;
@@ -335,18 +325,21 @@ export default function CodeToPdf() {
             }
             const x = (pdfWidth - newImgWidth) / 2;
             const y = (pdfHeight - newImgHeight) / 2;
+
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
             pdf.save(`${activeTab}-output.pdf`);
-            console.log("PDF guardado exitosamente.");
+            console.log("PDF saved successfully.");
+            captureSuccess = true;
+
         } catch (error) {
-            console.error("Error generando PDF:", error);
+            console.error("Error generating PDF:", error);
             toast({
-                title: "Fallo en la generación de PDF",
-                description: "Ocurrió un error inesperado. Por favor, inténtelo de nuevo.",
+                title: "Failed to generate PDF",
+                description: "An unexpected error occurred. Please try again.",
                 variant: "destructive",
             });
         } finally {
-            console.log("--- Finalizando generación de PDF ---");
+            console.log("--- Ending PDF generation ---");
             setIsGenerating(false);
         }
     };
