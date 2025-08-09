@@ -206,28 +206,21 @@ export default function CodeToPdf() {
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
-    const [isIframeLoaded, setIsIframeLoaded] = useState(false);
     const [outputCode, setOutputCode] = useState(defaultCode);
 
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
-    useEffect(() => {
-        // When the component mounts, we consider the iframe with default code as loaded.
-        setIsIframeLoaded(true);
-    }, []);
-
     const handleUpdateCode = () => {
-        setIsIframeLoaded(false); // Disable button while new content loads
         setOutputCode(code);
     };
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
         
-        if (!iframeRef.current || !isIframeLoaded) {
+        if (!iframeRef.current) {
              toast({
                 title: "Error",
-                description: "Cannot generate PDF. Output not available or still loading. Please click 'Update Preview' first.",
+                description: "Cannot generate PDF. Output not available.",
                 variant: "destructive",
             });
             setIsGenerating(false);
@@ -375,7 +368,7 @@ export default function CodeToPdf() {
                                     <Eye className="h-5 w-5"/>
                                     <CardTitle className="text-xl">Salida</CardTitle>
                                 </div>
-                                <Button onClick={handleGeneratePdf} disabled={isGenerating || !isIframeLoaded} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
+                                <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
                                     {isGenerating ? (
                                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                     ) : (
@@ -395,7 +388,6 @@ export default function CodeToPdf() {
                                         width="100%"
                                         height="500px"
                                         className="rounded-md"
-                                        onLoad={() => setIsIframeLoaded(true)}
                                         />
                                 </div>
                            </CardContent>
@@ -406,5 +398,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
