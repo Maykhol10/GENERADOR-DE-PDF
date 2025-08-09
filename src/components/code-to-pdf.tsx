@@ -252,8 +252,11 @@ export default function CodeToPdf() {
 
     useEffect(() => {
         // When code changes, we reset the loaded state
-        setIsIframeLoaded(false);
-    }, [code]);
+        // and when the tab is 'output'
+        if (activeTab === 'output') {
+          setIsIframeLoaded(false);
+        }
+    }, [code, activeTab]);
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
@@ -455,6 +458,7 @@ export default function CodeToPdf() {
                                         <TabsContent value="output">
                                             <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
                                                  <iframe
+                                                    key={code}
                                                     ref={iframeRef}
                                                     srcDoc={code}
                                                     title="output"
