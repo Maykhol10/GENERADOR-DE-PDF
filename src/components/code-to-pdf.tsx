@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun, Eye } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, Eye, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const defaultCode = `
@@ -207,14 +207,17 @@ export default function CodeToPdf() {
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
     const [isIframeLoaded, setIsIframeLoaded] = useState(false);
+    const [outputCode, setOutputCode] = useState(defaultCode);
 
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-      // Every time the code changes, we set the iframe as not loaded.
-      // The `onLoad` event on the iframe will set it back to true.
-      setIsIframeLoaded(false);
-    }, [code]);
+        setIsIframeLoaded(false);
+    }, [outputCode]);
+
+    const handleUpdateCode = () => {
+        setOutputCode(code);
+    };
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
@@ -222,7 +225,7 @@ export default function CodeToPdf() {
         if (!iframeRef.current || !isIframeLoaded) {
              toast({
                 title: "Error",
-                description: "Cannot generate PDF. Output not available or still loading.",
+                description: "Cannot generate PDF. Output not available or still loading. Please click 'Update Preview' first.",
                 variant: "destructive",
             });
             setIsGenerating(false);
@@ -245,7 +248,7 @@ export default function CodeToPdf() {
         try {
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
-                scale: 3, // Increased scale for better quality
+                scale: 3,
                 allowTaint: true,
             });
 
@@ -308,7 +311,7 @@ export default function CodeToPdf() {
                                 <CardTitle className="text-xl">Tu Código</CardTitle>
                                 <CardDescription>Pega tu código aquí. El HTML/JS se renderiza en la pestaña "Salida". Python no se ejecuta.</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex flex-col gap-4">
                                 <Textarea
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
@@ -316,6 +319,10 @@ export default function CodeToPdf() {
                                     className="h-96 font-code text-sm rounded-md transition-shadow duration-300 focus:shadow-outline"
                                     rows={20}
                                 />
+                                <Button onClick={handleUpdateCode}>
+                                    <RefreshCw className="mr-2 h-5 w-5" />
+                                    Actualizar Vista Previa
+                                </Button>
                             </CardContent>
                         </Card>
 
@@ -379,7 +386,7 @@ export default function CodeToPdf() {
                                 <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
                                         <iframe
                                         ref={iframeRef}
-                                        srcDoc={code}
+                                        srcDoc={outputCode}
                                         title="output"
                                         sandbox="allow-scripts allow-same-origin"
                                         frameBorder="0"
@@ -397,5 +404,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
