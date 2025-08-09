@@ -212,10 +212,12 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-        setIsIframeLoaded(false);
-    }, [outputCode]);
+        // When the component mounts, we consider the iframe with default code as loaded.
+        setIsIframeLoaded(true);
+    }, []);
 
     const handleUpdateCode = () => {
+        setIsIframeLoaded(false); // Disable button while new content loads
         setOutputCode(code);
     };
 
