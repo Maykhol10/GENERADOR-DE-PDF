@@ -245,11 +245,13 @@ export default function CodeToPdf() {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("output");
     const [iframeKey, setIframeKey] = useState(0);
+    const [isIframeLoading, setIsIframeLoading] = useState(true);
 
     const previewRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
+        setIsIframeLoading(true);
         setIframeKey(prevKey => prevKey + 1);
     }, [code]);
 
@@ -257,7 +259,11 @@ export default function CodeToPdf() {
         let elementToCapture: HTMLElement | null = null;
         if (activeTab === 'code') {
             elementToCapture = previewRef.current;
-        } else if (iframeRef.current) {
+        } else if (activeTab === 'output' && iframeRef.current) {
+            // Wait for iframe to be loaded
+            if(isIframeLoading) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
             elementToCapture = iframeRef.current.contentDocument?.body || null;
         }
 
@@ -272,7 +278,7 @@ export default function CodeToPdf() {
 
         setIsGenerating(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 500)); // Delay for render
+            await new Promise(resolve => setTimeout(resolve, 500)); // Extra delay for render
 
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
@@ -453,6 +459,7 @@ export default function CodeToPdf() {
                                                     width="100%"
                                                     height="500px"
                                                     className="rounded-md"
+                                                    onLoad={() => setIsIframeLoading(false)}
                                                   />
                                             </div>
                                         </TabsContent>
@@ -467,5 +474,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
