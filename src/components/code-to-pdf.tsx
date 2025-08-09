@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun, Eye, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const defaultCode = `
@@ -209,7 +209,7 @@ export default function CodeToPdf() {
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
     const [outputCode, setOutputCode] = useState(defaultCode);
-
+    
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     const handleUpdateCode = () => {
@@ -218,12 +218,13 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
+        await import('jspdf/dist/polyfills.es.js');
 
         const iframe = iframeRef.current;
         if (!iframe?.contentWindow?.document?.body) {
             toast({
                 title: "Error",
-                description: "Cannot generate PDF. Output content not ready.",
+                description: "No se puede generar PDF. El contenido de salida no está listo.",
                 variant: "destructive",
             });
             setIsGenerating(false);
@@ -231,7 +232,7 @@ export default function CodeToPdf() {
         }
 
         const elementToCapture = iframe.contentWindow.document.documentElement;
-
+        
         try {
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -251,10 +252,10 @@ export default function CodeToPdf() {
             });
 
         } catch (error) {
-            console.error("Error generating PDF:", error);
+            console.error("Error al generar PDF:", error);
             toast({
-                title: "Failed to generate PDF",
-                description: "An unexpected error occurred. Please check the console.",
+                title: "Fallo al generar PDF",
+                description: "Ocurrió un error inesperado. Por favor, revise la consola.",
                 variant: "destructive",
             });
         } finally {
@@ -277,8 +278,8 @@ export default function CodeToPdf() {
                 <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF para compartir.</p>
             </header>
             <main className="container mx-auto p-4 flex-grow">
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                    <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="space-y-6">
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="text-xl">Tu Código</CardTitle>
@@ -339,13 +340,10 @@ export default function CodeToPdf() {
                         </Card>
                     </div>
 
-                    <div className="lg:col-span-3">
+                    <div>
                         <Card className="shadow-lg h-full flex flex-col">
                            <CardHeader className="flex-row items-center justify-between border-b">
-                                <div className="flex items-center gap-2">
-                                    <Eye className="h-5 w-5"/>
-                                    <CardTitle className="text-xl">Salida</CardTitle>
-                                </div>
+                                <CardTitle className="text-xl">Vista Previa</CardTitle>
                                 <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
                                     {isGenerating ? (
                                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -364,8 +362,8 @@ export default function CodeToPdf() {
                                         sandbox="allow-scripts allow-same-origin"
                                         frameBorder="0"
                                         width="100%"
-                                        height="500px"
-                                        className="rounded-md"
+                                        className="rounded-md w-full"
+                                        style={{height: '60vh'}}
                                     />
                                 </div>
                            </CardContent>
@@ -376,5 +374,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
