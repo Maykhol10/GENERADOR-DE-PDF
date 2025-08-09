@@ -257,7 +257,6 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
-        console.log("--- Starting PDF generation ---");
 
         let elementToCapture: HTMLElement | null = null;
 
@@ -268,12 +267,7 @@ export default function CodeToPdf() {
                  const iframeDoc = iframeRef.current.contentDocument;
                  if(iframeDoc) {
                     elementToCapture = iframeDoc.body;
-                 } else {
-                    console.error("Iframe contentDocument is null even after load.");
                  }
-            } else {
-                 console.log("Waiting for iframe to load... isIframeLoaded:", isIframeLoaded);
-                 // Optional: you could add a timeout or a few retries here
             }
         }
         
@@ -290,9 +284,8 @@ export default function CodeToPdf() {
         try {
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
-                scale: 2,
+                scale: 3, // Increased scale for better quality
                 allowTaint: true,
-                logging: true,
             });
 
             const imgData = canvas.toDataURL('image/png');
@@ -305,16 +298,16 @@ export default function CodeToPdf() {
 
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            const ratio = imgWidth / imgHeight;
+            const imgRatio = canvas.width / canvas.height;
+            
+            let newImgWidth = pdfWidth;
+            let newImgHeight = newImgWidth / imgRatio;
 
-            let newImgWidth = pdfWidth - 20; // with padding
-            let newImgHeight = newImgWidth / ratio;
-            if (newImgHeight > pdfHeight - 20) {
-                newImgHeight = pdfHeight - 20;
-                newImgWidth = newImgHeight * ratio;
+            if (newImgHeight > pdfHeight) {
+                newImgHeight = pdfHeight;
+                newImgWidth = newImgHeight * imgRatio;
             }
+
             const x = (pdfWidth - newImgWidth) / 2;
             const y = (pdfHeight - newImgHeight) / 2;
 
@@ -471,7 +464,6 @@ export default function CodeToPdf() {
                                                     height="500px"
                                                     className="rounded-md"
                                                     onLoad={() => {
-                                                        console.log("Iframe finished loading, setting isIframeLoaded to true");
                                                         setIsIframeLoaded(true);
                                                     }}
                                                   />
@@ -488,5 +480,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
