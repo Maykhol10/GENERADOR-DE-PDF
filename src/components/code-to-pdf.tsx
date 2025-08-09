@@ -51,28 +51,14 @@ SyntaxHighlighter.registerLanguage('sql', sql);
 SyntaxHighlighter.registerLanguage('bash', bash);
 
 const defaultCode = `
-<div id="chart-container" style="width: 100%; height: 400px;"></div>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script>
-  var chartDom = document.getElementById('chart-container');
-  var myChart = echarts.init(chartDom);
-  var option = {
-    xAxis: {
-      type: 'category',
-      data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        data: [150, 230, 224, 218, 135, 147, 260],
-        type: 'line'
-      }
-    ]
-  };
-  myChart.setOption(option);
-</script>
+def greet(name):
+  """
+  This function greets the person passed in as a parameter.
+  """
+  print(f"Hello, {name}! Welcome to Code2PDF.")
+
+if __name__ == "__main__":
+  greet("Developer")
 `.trim();
 
 
@@ -170,13 +156,13 @@ export default function CodeToPdf() {
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="text-xl">Your Code</CardTitle>
-                                <CardDescription>Paste your HTML, CSS, and JS code.</CardDescription>
+                                <CardDescription>Paste your code here (e.g., Python, JavaScript, HTML).</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Textarea
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    placeholder="<!-- Paste your HTML, CSS, and JS here -->"
+                                    placeholder="Paste your code here..."
                                     className="h-96 font-code text-sm rounded-md transition-shadow duration-300 focus:shadow-outline"
                                     rows={20}
                                 />
@@ -255,7 +241,7 @@ export default function CodeToPdf() {
                                         <TabsContent value="code">
                                             <div ref={previewRef} className={`p-6 rounded-lg overflow-auto transition-all duration-300 ${previewBg}`}>
                                                 <SyntaxHighlighter
-                                                    language="html"
+                                                    language="python"
                                                     className="font-code"
                                                     style={highlighterStyle}
                                                     showLineNumbers
@@ -298,6 +284,5 @@ export default function CodeToPdf() {
             </main>
         </div>
     );
-}
 
     
