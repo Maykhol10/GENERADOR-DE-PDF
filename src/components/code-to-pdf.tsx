@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomOneDark, github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
@@ -244,71 +244,74 @@ export default function CodeToPdf() {
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("output");
-
+    const [iframeKey, setIframeKey] = useState(0);
 
     const previewRef = useRef<HTMLDivElement>(null);
-    const outputRef = useRef<HTMLDivElement>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
-    const getIframeBody = (iframe: HTMLIFrameElement) => {
-        return iframe.contentDocument?.body;
-    }
+    useEffect(() => {
+        setIframeKey(prevKey => prevKey + 1);
+    }, [code]);
 
     const handleGeneratePdf = async () => {
-        // Use a timeout to ensure the iframe content has rendered
-        setTimeout(async () => {
-            const elementToCapture = activeTab === 'code' ? previewRef.current : (outputRef.current ? getIframeBody(outputRef.current.querySelector('iframe')!) : null);
-            
-            if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
-                toast({
-                    title: "Error",
-                    description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
-                    variant: "destructive",
-                });
-                return;
-            }
+        let elementToCapture: HTMLElement | null = null;
+        if (activeTab === 'code') {
+            elementToCapture = previewRef.current;
+        } else if (iframeRef.current) {
+            elementToCapture = iframeRef.current.contentDocument?.body || null;
+        }
 
-            setIsGenerating(true);
-            try {
-                const canvas = await html2canvas(elementToCapture, {
-                    useCORS: true,
-                    scale: 2,
-                    // Allow scripts so that chart libraries can render
-                    allowTaint: true,
-                });
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF({
-                    orientation: orientation,
-                    unit: 'px',
-                    format: 'a4',
-                    hotfixes: ['px_scaling'],
-                });
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const ratio = imgWidth / imgHeight;
+        if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
+            toast({
+                title: "Error",
+                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
+                variant: "destructive",
+            });
+            return;
+        }
 
-                let newImgWidth = pdfWidth - 20; // with padding
-                let newImgHeight = newImgWidth / ratio;
-                if (newImgHeight > pdfHeight - 20) {
-                    newImgHeight = pdfHeight - 20;
-                    newImgWidth = newImgHeight * ratio;
-                }
-                const x = (pdfWidth - newImgWidth) / 2;
-                const y = (pdfHeight - newImgHeight) / 2;
-                pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-                pdf.save(`${activeTab}-output.pdf`);
-            } catch (error) {
-                console.error("Error generating PDF:", error);
-                toast({
-                    title: "PDF Generation Failed",
-                    description: "An unexpected error occurred. Please try again.",
-                    variant: "destructive",
-                });
-            } finally {
-                setIsGenerating(false);
+        setIsGenerating(true);
+        try {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Delay for render
+
+            const canvas = await html2canvas(elementToCapture, {
+                useCORS: true,
+                scale: 2,
+                allowTaint: true,
+            });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'px',
+                format: 'a4',
+                hotfixes: ['px_scaling'],
+            });
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const ratio = imgWidth / imgHeight;
+
+            let newImgWidth = pdfWidth - 20; // with padding
+            let newImgHeight = newImgWidth / ratio;
+            if (newImgHeight > pdfHeight - 20) {
+                newImgHeight = pdfHeight - 20;
+                newImgWidth = newImgHeight * ratio;
             }
-        }, 500); // 500ms delay
+            const x = (pdfWidth - newImgWidth) / 2;
+            const y = (pdfHeight - newImgHeight) / 2;
+            pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
+            pdf.save(`${activeTab}-output.pdf`);
+        } catch (error) {
+            console.error("Error generating PDF:", error);
+            toast({
+                title: "PDF Generation Failed",
+                description: "An unexpected error occurred. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleThemeChange = (checked: boolean) => {
@@ -439,8 +442,10 @@ export default function CodeToPdf() {
                                             </div>
                                         </TabsContent>
                                         <TabsContent value="output">
-                                            <div ref={outputRef} className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
+                                            <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
                                                  <iframe
+                                                    key={iframeKey}
+                                                    ref={iframeRef}
                                                     srcDoc={code}
                                                     title="output"
                                                     sandbox="allow-scripts"
@@ -462,4 +467,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
     
