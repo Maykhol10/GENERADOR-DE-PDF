@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -28,7 +29,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Loader2, Moon, Sun, Code, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Register languages for syntax highlighting
@@ -48,30 +50,68 @@ SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('sql', sql);
 SyntaxHighlighter.registerLanguage('bash', bash);
 
+const defaultCode = `
+<div id="chart-container" style="width: 100%; height: 400px;"></div>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script>
+  var chartDom = document.getElementById('chart-container');
+  var myChart = echarts.init(chartDom);
+  var option = {
+    xAxis: {
+      type: 'category',
+      data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    },
+    yAxis: {
+      type: 'value'
+    },
+    series: [
+      {
+        data: [150, 230, 224, 218, 135, 147, 260],
+        type: 'line'
+      }
+    ]
+  };
+  myChart.setOption(option);
+</script>
+`.trim();
+
+
 export default function CodeToPdf() {
-    const [code, setCode] = useState<string>('function helloWorld() {\n  console.log("Hello, World!");\n}');
+    const [code, setCode] = useState<string>(defaultCode);
     const [fontSize, setFontSize] = useState<number>(14);
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
+    const [activeTab, setActiveTab] = useState("code");
+
 
     const previewRef = useRef<HTMLDivElement>(null);
+    const outputRef = useRef<HTMLDivElement>(null);
+
+    const getIframeBody = (iframe: HTMLIFrameElement) => {
+        return iframe.contentDocument?.body;
+    }
 
     const handleGeneratePdf = async () => {
-        if (!previewRef.current || !code.trim()) {
+        const elementToCapture = activeTab === 'code' ? previewRef.current : (outputRef.current ? getIframeBody(outputRef.current.querySelector('iframe')!) : null);
+        
+        if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
             toast({
                 title: "Error",
-                description: "Cannot generate PDF. Please enter some code.",
+                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
                 variant: "destructive",
             });
             return;
         }
+
         setIsGenerating(true);
         try {
-            const canvas = await html2canvas(previewRef.current, {
+            const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
                 scale: 2,
+                // Allow scripts so that chart libraries can render
+                allowTaint: true,
             });
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
@@ -95,7 +135,7 @@ export default function CodeToPdf() {
             const x = (pdfWidth - newImgWidth) / 2;
             const y = (pdfHeight - newImgHeight) / 2;
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-            pdf.save('code.pdf');
+            pdf.save(`${activeTab}-output.pdf`);
         } catch (error) {
             console.error("Error generating PDF:", error);
             toast({
@@ -116,6 +156,7 @@ export default function CodeToPdf() {
 
     const highlighterStyle = theme === 'light' ? github : atomOneDark;
     const previewBg = theme === 'light' ? 'bg-[#f6f8fa]' : 'bg-[#282c34]';
+    const outputBg = theme === 'light' ? 'bg-white' : 'bg-gray-800';
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -129,15 +170,15 @@ export default function CodeToPdf() {
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="text-xl">Your Code</CardTitle>
-                                <CardDescription>Paste the code you want to convert.</CardDescription>
+                                <CardDescription>Paste your HTML, CSS, and JS code.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <Textarea
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    placeholder="// Paste your code here"
-                                    className="h-72 font-code text-sm rounded-md transition-shadow duration-300 focus:shadow-outline"
-                                    rows={15}
+                                    placeholder="<!-- Paste your HTML, CSS, and JS here -->"
+                                    className="h-96 font-code text-sm rounded-md transition-shadow duration-300 focus:shadow-outline"
+                                    rows={20}
                                 />
                             </CardContent>
                         </Card>
@@ -161,7 +202,7 @@ export default function CodeToPdf() {
                                     </div>
                                 </div>
                                 <div className="space-y-3">
-                                    <Label className="font-medium">Font Size: <span className="text-primary font-semibold">{fontSize}px</span></Label>
+                                    <Label className="font-medium">Font Size (Code): <span className="text-primary font-semibold">{fontSize}px</span></Label>
                                     <Slider
                                         value={[fontSize]}
                                         onValueChange={(value) => setFontSize(value[0])}
@@ -193,39 +234,64 @@ export default function CodeToPdf() {
 
                     <div className="lg:col-span-3">
                         <Card className="shadow-lg h-full flex flex-col">
-                            <CardHeader className="flex flex-row items-center justify-between border-b">
-                                <CardTitle className="text-xl">Preview</CardTitle>
-                                <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
-                                    {isGenerating ? (
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <Download className="mr-2 h-5 w-5" />
-                                    )}
-                                    Download PDF
-                                </Button>
-                            </CardHeader>
-                            <CardContent className="flex-grow p-4 md:p-6">
-                                <div ref={previewRef} className={`p-6 rounded-lg overflow-hidden transition-all duration-300 ${previewBg}`}>
-                                    <SyntaxHighlighter
-                                        className="font-code"
-                                        style={highlighterStyle}
-                                        showLineNumbers
-                                        wrapLines={true}
-                                        lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
-                                        customStyle={{
-                                            fontSize: `${fontSize}px`,
-                                            margin: 0,
-                                            backgroundColor: 'transparent',
-                                            transition: 'font-size 0.3s ease',
-                                        }}
-                                        codeTagProps={{
-                                            className: "font-code"
-                                        }}
-                                    >
-                                        {code}
-                                    </SyntaxHighlighter>
+                           <CardHeader>
+                                <div className="flex items-center justify-between">
+                                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                                    <div className="flex items-center justify-between border-b">
+                                        <TabsList>
+                                            <TabsTrigger value="code"><Code className="mr-2 h-4 w-4"/>Code</TabsTrigger>
+                                            <TabsTrigger value="output"><Eye className="mr-2 h-4 w-4"/>Output</TabsTrigger>
+                                        </TabsList>
+                                         <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
+                                            {isGenerating ? (
+                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                            ) : (
+                                                <Download className="mr-2 h-5 w-5" />
+                                            )}
+                                            Download PDF
+                                        </Button>
+                                    </div>
+                                    <CardContent className="flex-grow p-4 md:p-6 mt-4">
+                                        <TabsContent value="code">
+                                            <div ref={previewRef} className={`p-6 rounded-lg overflow-auto transition-all duration-300 ${previewBg}`}>
+                                                <SyntaxHighlighter
+                                                    language="html"
+                                                    className="font-code"
+                                                    style={highlighterStyle}
+                                                    showLineNumbers
+                                                    wrapLines={true}
+                                                    lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
+                                                    customStyle={{
+                                                        fontSize: `${fontSize}px`,
+                                                        margin: 0,
+                                                        backgroundColor: 'transparent',
+                                                        transition: 'font-size 0.3s ease',
+                                                    }}
+                                                    codeTagProps={{
+                                                        className: "font-code"
+                                                    }}
+                                                >
+                                                    {code}
+                                                </SyntaxHighlighter>
+                                            </div>
+                                        </TabsContent>
+                                        <TabsContent value="output">
+                                            <div ref={outputRef} className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
+                                                 <iframe
+                                                    srcDoc={code}
+                                                    title="output"
+                                                    sandbox="allow-scripts"
+                                                    frameBorder="0"
+                                                    width="100%"
+                                                    height="500px"
+                                                    className="rounded-md"
+                                                  />
+                                            </div>
+                                        </TabsContent>
+                                    </CardContent>
+                                 </Tabs>
                                 </div>
-                            </CardContent>
+                           </CardHeader>
                         </Card>
                     </div>
                 </div>
@@ -233,3 +299,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
