@@ -244,49 +244,43 @@ export default function CodeToPdf() {
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("output");
+    const [isIframeLoaded, setIsIframeLoaded] = useState(false);
+
 
     const previewRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
+    useEffect(() => {
+        // When code changes, we reset the loaded state
+        setIsIframeLoaded(false);
+    }, [code]);
+
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
         console.log("--- Starting PDF generation ---");
-        console.log("Active tab:", activeTab);
 
         let elementToCapture: HTMLElement | null = null;
 
         if (activeTab === 'code') {
-            console.log("Mode: Code capture");
             elementToCapture = previewRef.current;
         } else if (activeTab === 'output') {
-            console.log("Mode: Output capture");
-            // The iframe content can be tricky to capture.
-            // We need to ensure it's loaded and access its contentDocument.
-            if (iframeRef.current) {
-                try {
-                    console.log("Attempting to access iframe contentDocument.");
-                    const iframeDoc = iframeRef.current.contentDocument;
-                    if (iframeDoc) {
-                        elementToCapture = iframeDoc.body;
-                        console.log("Successfully accessed iframe body:", elementToCapture);
-                    } else {
-                        console.error("Iframe contentDocument is null.");
-                    }
-                } catch (e) {
-                     console.error("Security error or other issue accessing iframe content:", e);
-                }
+            if (iframeRef.current && isIframeLoaded) {
+                 const iframeDoc = iframeRef.current.contentDocument;
+                 if(iframeDoc) {
+                    elementToCapture = iframeDoc.body;
+                 } else {
+                    console.error("Iframe contentDocument is null even after load.");
+                 }
             } else {
-                console.error("Iframe ref is not available.");
+                 console.log("Waiting for iframe to load... isIframeLoaded:", isIframeLoaded);
+                 // Optional: you could add a timeout or a few retries here
             }
         }
         
-        console.log("Final element to capture:", elementToCapture);
-
-        if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
-             console.error("Validation failed: Element to capture not found or code is empty.");
+        if (!elementToCapture) {
              toast({
                 title: "Error",
-                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
+                description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available or still loading.",
                 variant: "destructive",
             });
             setIsGenerating(false);
@@ -294,10 +288,6 @@ export default function CodeToPdf() {
         }
 
         try {
-            // Give the browser a moment to render everything, especially in the iframe
-            await new Promise(resolve => setTimeout(resolve, 500)); 
-            console.log("Capturing element with html2canvas:", elementToCapture);
-
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
                 scale: 2,
@@ -305,7 +295,6 @@ export default function CodeToPdf() {
                 logging: true,
             });
 
-            console.log("html2canvas completed successfully.");
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -331,17 +320,14 @@ export default function CodeToPdf() {
 
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
             pdf.save(`${activeTab}-output.pdf`);
-            console.log("PDF saved successfully.");
-
         } catch (error) {
-            console.error("Error generating PDF with html2canvas:", error);
+            console.error("Error generating PDF:", error);
             toast({
                 title: "Failed to generate PDF",
                 description: "An unexpected error occurred. Please check the console.",
                 variant: "destructive",
             });
         } finally {
-            console.log("--- Ending PDF generation ---");
             setIsGenerating(false);
         }
     };
@@ -440,7 +426,7 @@ export default function CodeToPdf() {
                                             <TabsTrigger value="code"><Code className="mr-2 h-4 w-4"/>Código</TabsTrigger>
                                             <TabsTrigger value="output"><Eye className="mr-2 h-4 w-4"/>Salida</TabsTrigger>
                                         </TabsList>
-                                         <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
+                                         <Button onClick={handleGeneratePdf} disabled={isGenerating || (activeTab === 'output' && !isIframeLoaded)} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
                                             {isGenerating ? (
                                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                             ) : (
@@ -479,12 +465,15 @@ export default function CodeToPdf() {
                                                     ref={iframeRef}
                                                     srcDoc={code}
                                                     title="output"
-                                                    sandbox="allow-scripts"
+                                                    sandbox="allow-scripts allow-same-origin"
                                                     frameBorder="0"
                                                     width="100%"
                                                     height="500px"
                                                     className="rounded-md"
-                                                    onLoad={() => console.log("Iframe finished loading.")}
+                                                    onLoad={() => {
+                                                        console.log("Iframe finished loading, setting isIframeLoaded to true");
+                                                        setIsIframeLoaded(true);
+                                                    }}
                                                   />
                                             </div>
                                         </TabsContent>
