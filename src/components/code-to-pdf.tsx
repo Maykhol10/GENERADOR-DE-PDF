@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { jsPDF } from 'jspdf';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,9 +230,23 @@ export default function CodeToPdf() {
             return;
         }
 
-        const elementToCapture = iframe.contentWindow.document.documentElement;
+        const iWindow = iframe.contentWindow;
+        const iDocument = iWindow.document;
+
+        const styleMatch = code.match(/<style>([\s\S]*?)<\/style>/);
+        const styleContent = styleMatch ? styleMatch[1] : '';
+
+        const styleEl = iDocument.createElement('style');
+        styleEl.innerHTML = styleContent;
+        iDocument.head.appendChild(styleEl);
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const elementToCapture = iDocument.documentElement;
+        const contentWidth = elementToCapture.scrollWidth;
         
         try {
+            const { jsPDF } = await import('jspdf');
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
@@ -247,7 +260,7 @@ export default function CodeToPdf() {
                 x: 0,
                 y: 0,
                 width: pdf.internal.pageSize.getWidth(),
-                windowWidth: elementToCapture.scrollWidth,
+                windowWidth: contentWidth,
                 autoPaging: 'text'
             });
 
@@ -374,3 +387,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
