@@ -1,9 +1,8 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +20,9 @@ const defaultCode = `
         font-size: 10px;
         line-height: 1.4;
         color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: white;
     }
     .custom-title {
         font-size: 18px;
@@ -216,62 +218,38 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
-        
-        if (!iframeRef.current) {
-             toast({
-                title: "Error",
-                description: "Cannot generate PDF. Output not available.",
-                variant: "destructive",
-            });
-            setIsGenerating(false);
-            return;
-        }
-        
-        const iframeDoc = iframeRef.current.contentDocument;
-        if (!iframeDoc || !iframeDoc.body) {
+
+        const iframe = iframeRef.current;
+        if (!iframe?.contentWindow?.document?.body) {
             toast({
                 title: "Error",
-                description: "Cannot access output content to generate PDF.",
+                description: "Cannot generate PDF. Output content not ready.",
                 variant: "destructive",
             });
             setIsGenerating(false);
             return;
         }
 
-        const elementToCapture = iframeDoc.body;
+        const elementToCapture = iframe.contentWindow.document.documentElement;
 
         try {
-            const canvas = await html2canvas(elementToCapture, {
-                useCORS: true,
-                scale: 3,
-                allowTaint: true,
-            });
-
-            const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF({
                 orientation: orientation,
-                unit: 'px',
+                unit: 'pt',
                 format: 'a4',
-                hotfixes: ['px_scaling'],
             });
 
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgRatio = canvas.width / canvas.height;
-            
-            let newImgWidth = pdfWidth;
-            let newImgHeight = newImgWidth / imgRatio;
+            await pdf.html(elementToCapture, {
+                callback: function (doc) {
+                    doc.save('output.pdf');
+                },
+                x: 0,
+                y: 0,
+                width: pdf.internal.pageSize.getWidth(),
+                windowWidth: elementToCapture.scrollWidth,
+                autoPaging: 'text'
+            });
 
-            if (newImgHeight > pdfHeight) {
-                newImgHeight = pdfHeight;
-                newImgWidth = newImgHeight * imgRatio;
-            }
-
-            const x = (pdfWidth - newImgWidth) / 2;
-            const y = (pdfHeight - newImgHeight) / 2;
-
-            pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-            pdf.save(`output.pdf`);
         } catch (error) {
             console.error("Error generating PDF:", error);
             toast({
@@ -304,7 +282,7 @@ export default function CodeToPdf() {
                         <Card className="shadow-lg">
                             <CardHeader>
                                 <CardTitle className="text-xl">Tu Código</CardTitle>
-                                <CardDescription>Pega tu código aquí. El HTML/JS se renderiza en la pestaña "Salida". Python no se ejecuta.</CardDescription>
+                                <CardDescription>Pega tu código aquí. El HTML/JS se renderiza en el panel de la derecha.</CardDescription>
                             </CardHeader>
                             <CardContent className="flex flex-col gap-4">
                                 <Textarea
@@ -379,7 +357,7 @@ export default function CodeToPdf() {
                            </CardHeader>
                            <CardContent className="flex-grow p-4 md:p-6">
                                 <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
-                                        <iframe
+                                    <iframe
                                         ref={iframeRef}
                                         srcDoc={outputCode}
                                         title="output"
@@ -388,7 +366,7 @@ export default function CodeToPdf() {
                                         width="100%"
                                         height="500px"
                                         className="rounded-md"
-                                        />
+                                    />
                                 </div>
                            </CardContent>
                         </Card>
@@ -398,3 +376,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
