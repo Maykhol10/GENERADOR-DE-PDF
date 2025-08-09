@@ -244,17 +244,9 @@ export default function CodeToPdf() {
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("output");
-    const [iframeKey, setIframeKey] = useState(0);
-    const [isIframeLoading, setIsIframeLoading] = useState(true);
 
     const previewRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
-
-    useEffect(() => {
-        setIsIframeLoading(true);
-        // Re-render iframe when code changes
-        setIframeKey(prevKey => prevKey + 1);
-    }, [code]);
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
@@ -262,26 +254,36 @@ export default function CodeToPdf() {
         console.log("Active tab:", activeTab);
 
         let elementToCapture: HTMLElement | null = null;
-        let captureSuccess = false;
 
         if (activeTab === 'code') {
             console.log("Mode: Code capture");
             elementToCapture = previewRef.current;
         } else if (activeTab === 'output') {
             console.log("Mode: Output capture");
+            // The iframe content can be tricky to capture.
+            // We need to ensure it's loaded and access its contentDocument.
             if (iframeRef.current) {
                 try {
-                    // Accessing contentDocument can be tricky due to timing
-                    elementToCapture = iframeRef.current.contentDocument?.body || null;
+                    console.log("Attempting to access iframe contentDocument.");
+                    const iframeDoc = iframeRef.current.contentDocument;
+                    if (iframeDoc) {
+                        elementToCapture = iframeDoc.body;
+                        console.log("Successfully accessed iframe body:", elementToCapture);
+                    } else {
+                        console.error("Iframe contentDocument is null.");
+                    }
                 } catch (e) {
-                     console.error("Security error accessing iframe content:", e);
+                     console.error("Security error or other issue accessing iframe content:", e);
                 }
+            } else {
+                console.error("Iframe ref is not available.");
             }
         }
         
-        console.log("Initial element to capture:", elementToCapture);
+        console.log("Final element to capture:", elementToCapture);
 
         if (!elementToCapture || (activeTab === 'code' && !code.trim())) {
+             console.error("Validation failed: Element to capture not found or code is empty.");
              toast({
                 title: "Error",
                 description: activeTab === 'code' ? "Cannot generate PDF. Please enter some code." : "Cannot generate PDF. Output not available.",
@@ -292,8 +294,9 @@ export default function CodeToPdf() {
         }
 
         try {
+            // Give the browser a moment to render everything, especially in the iframe
+            await new Promise(resolve => setTimeout(resolve, 500)); 
             console.log("Capturing element with html2canvas:", elementToCapture);
-            await new Promise(resolve => setTimeout(resolve, 500)); // Extra delay for rendering
 
             const canvas = await html2canvas(elementToCapture, {
                 useCORS: true,
@@ -329,13 +332,12 @@ export default function CodeToPdf() {
             pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
             pdf.save(`${activeTab}-output.pdf`);
             console.log("PDF saved successfully.");
-            captureSuccess = true;
 
         } catch (error) {
-            console.error("Error generating PDF:", error);
+            console.error("Error generating PDF with html2canvas:", error);
             toast({
                 title: "Failed to generate PDF",
-                description: "An unexpected error occurred. Please try again.",
+                description: "An unexpected error occurred. Please check the console.",
                 variant: "destructive",
             });
         } finally {
@@ -474,7 +476,6 @@ export default function CodeToPdf() {
                                         <TabsContent value="output">
                                             <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
                                                  <iframe
-                                                    key={iframeKey}
                                                     ref={iframeRef}
                                                     srcDoc={code}
                                                     title="output"
@@ -483,7 +484,7 @@ export default function CodeToPdf() {
                                                     width="100%"
                                                     height="500px"
                                                     className="rounded-md"
-                                                    onLoad={() => setIsIframeLoading(false)}
+                                                    onLoad={() => console.log("Iframe finished loading.")}
                                                   />
                                             </div>
                                         </TabsContent>
