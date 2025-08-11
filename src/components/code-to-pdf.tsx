@@ -217,6 +217,7 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
+        // This effect runs once on the client after hydration
         const params = new URLSearchParams(window.location.search);
         const gistId = params.get('gist');
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
@@ -242,12 +243,17 @@ export default function CodeToPdf() {
         
         if (themeParam) {
             setTheme(themeParam);
-            document.documentElement.classList.toggle('dark', themeParam === 'dark');
         }
         if (orientationParam) {
             setOrientation(orientationParam);
         }
     }, [toast]);
+
+    useEffect(() => {
+      // This effect syncs the theme with the DOM
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    }, [theme]);
+
 
     const handleUpdateCode = () => {
         setOutputCode(code);
@@ -266,7 +272,6 @@ export default function CodeToPdf() {
 
             const iDocument = iframe.contentWindow.document;
             const iBody = iDocument.body;
-            const iHtml = iDocument.documentElement;
 
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -276,7 +281,6 @@ export default function CodeToPdf() {
             });
 
             const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
             const margin = 20;
 
             // Calculate scale to fit content width in PDF page width
@@ -284,7 +288,6 @@ export default function CodeToPdf() {
             const scale = (pageWidth - margin * 2) / contentWidth;
 
             await pdf.html(iBody, {
-                // Ensure the callback is properly awaited
                 callback: (doc) => {
                     doc.save('code-output.pdf');
                     toast({
@@ -293,14 +296,11 @@ export default function CodeToPdf() {
                     });
                 },
                 margin: [margin, margin, margin, margin],
-                // Crucially disable autoPaging, let html2canvas handle the full element
                 autoPaging: false, 
                 html2canvas: {
                     allowTaint: true,
                     useCORS: true,
-                    // Use the calculated scale
                     scale: scale,
-                    // Force html2canvas to use the full scrollable area
                     width: contentWidth,
                     height: iBody.scrollHeight,
                     removeContainer: true,
@@ -324,7 +324,6 @@ export default function CodeToPdf() {
     const handleThemeChange = (checked: boolean) => {
         const newTheme = checked ? 'dark' : 'light';
         setTheme(newTheme);
-        document.documentElement.classList.toggle('dark', checked);
     };
 
     const handleGenerateLink = async () => {
@@ -507,3 +506,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
