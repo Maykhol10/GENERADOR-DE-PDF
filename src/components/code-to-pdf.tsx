@@ -309,7 +309,8 @@ export default function CodeToPdf() {
 
     const handleGenerateLink = () => {
         try {
-            const encodedCode = btoa(code);
+            // Codificar para manejar caracteres Unicode de forma segura
+            const encodedCode = btoa(unescape(encodeURIComponent(code)));
             const params = new URLSearchParams();
             params.set('code', encodedCode);
             params.set('theme', theme);
@@ -474,5 +475,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
