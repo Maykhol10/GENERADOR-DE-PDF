@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun, RefreshCw, FileCode } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
@@ -216,31 +216,6 @@ export default function CodeToPdf() {
         setOutputCode(code);
     };
 
-    const handleDownloadHtml = () => {
-        try {
-            const blob = new Blob([code], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'code.html';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            toast({
-                title: "HTML Descargado",
-                description: "El código fuente ha sido descargado exitosamente.",
-            });
-        } catch (error) {
-            console.error("Error al descargar HTML:", error);
-            toast({
-                title: "Error al Descargar",
-                description: `Ocurrió un error: ${error instanceof Error ? error.message : 'Error desconocido'}`,
-                variant: "destructive",
-            });
-        }
-    };
-
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
         
@@ -393,10 +368,6 @@ export default function CodeToPdf() {
                            <CardHeader className="flex-row items-center justify-between border-b">
                                 <CardTitle className="text-xl">Vista Previa</CardTitle>
                                 <div className="flex flex-col items-end gap-2">
-                                    <Button onClick={handleDownloadHtml} variant="outline">
-                                        <FileCode className="mr-2 h-5 w-5" />
-                                        Descargar HTML
-                                    </Button>
                                     <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
                                         {isGenerating ? (
                                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
