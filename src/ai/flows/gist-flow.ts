@@ -1,58 +1,17 @@
-
 'use server';
 /**
- * @fileOverview Flujo para interactuar con la API de Gists de GitHub.
+ * @fileOverview Funciones para interactuar con la API de Gists de GitHub.
  *
  * - createGist: Crea un nuevo Gist anónimo con el contenido proporcionado.
  * - getGist: Obtiene el contenido de un Gist a partir de su ID.
  */
-
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-
-// Esquema de entrada para la creación de un Gist
-const GistCreateInputSchema = z.string().describe('El contenido del archivo para el Gist.');
-export type GistCreateInput = z.infer<typeof GistCreateInputSchema>;
-
-// Esquema de salida para la creación de un Gist
-const GistCreateOutputSchema = z.string().describe('El ID del Gist creado.');
-export type GistCreateOutput = z.infer<typeof GistCreateOutputSchema>;
-
-// Esquema de entrada para obtener un Gist
-const GistGetInputSchema = z.string().describe('El ID del Gist a obtener.');
-export type GistGetInput = z.infer<typeof GistGetInputSchema>;
-
-// Esquema de salida para obtener un Gist
-const GistGetOutputSchema = z.string().describe('El contenido del archivo del Gist.');
-export type GistGetOutput = z.infer<typeof GistGetOutputSchema>;
-
 
 /**
  * Crea un Gist en GitHub.
  * @param content El contenido del código para el Gist.
  * @returns El ID del Gist creado.
  */
-export async function createGist(content: GistCreateInput): Promise<GistCreateOutput> {
-  return createGistFlow(content);
-}
-
-/**
- * Obtiene el contenido de un Gist de GitHub.
- * @param gistId El ID del Gist.
- * @returns El contenido del primer archivo del Gist.
- */
-export async function getGist(gistId: GistGetInput): Promise<GistGetOutput> {
-    return getGistFlow(gistId);
-}
-
-
-const createGistFlow = ai.defineFlow(
-  {
-    name: 'createGistFlow',
-    inputSchema: GistCreateInputSchema,
-    outputSchema: GistCreateOutputSchema,
-  },
-  async (content) => {
+export async function createGist(content: string): Promise<string> {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     if (!GITHUB_TOKEN || GITHUB_TOKEN === "TU_NUEVO_TOKEN_DE_GITHUB_VA_AQUÍ") {
       throw new Error('401: GITHUB_TOKEN no está configurado en el servidor.');
@@ -84,15 +43,14 @@ const createGistFlow = ai.defineFlow(
 
     const data = await response.json();
     return data.id;
-  }
-);
+}
 
-
-const getGistFlow = ai.defineFlow({
-    name: 'getGistFlow',
-    inputSchema: GistGetInputSchema,
-    outputSchema: GistGetOutputSchema,
-}, async (gistId) => {
+/**
+ * Obtiene el contenido de un Gist de GitHub.
+ * @param gistId El ID del Gist.
+ * @returns El contenido del primer archivo del Gist.
+ */
+export async function getGist(gistId: string): Promise<string> {
     // No se requiere token para leer Gists públicos/secretos
     const response = await fetch(`https://api.github.com/gists/${gistId}`, {
         method: 'GET',
@@ -112,4 +70,4 @@ const getGistFlow = ai.defineFlow({
     }
 
     return data.files[fileName].content;
-});
+}
