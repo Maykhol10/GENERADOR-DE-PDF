@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -208,6 +209,7 @@ export default function CodeToPdf() {
     const [code, setCode] = useState<string>(defaultCode);
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+    const [pageSize, setPageSize] = useState<string>('a4');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
     const [shareableLink, setShareableLink] = useState('');
@@ -217,36 +219,43 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
+      // This effect runs only once on the client after hydration
+      const params = new URLSearchParams(window.location.search);
+      const gistId = params.get('gist');
+      if (gistId) {
+        const loadGist = async () => {
+          try {
+            const gistContent = await getGist(gistId);
+            setCode(gistContent);
+            setOutputCode(gistContent);
+            toast({
+              title: "Código Cargado",
+              description: "El código se ha cargado desde el Gist compartido.",
+            });
+          } catch (e) {
+            console.error("Error loading from Gist", e);
+            toast({
+              title: "Error de Carga",
+              description: "No se pudo cargar el código desde el Gist. Puede que sea inválido o haya sido eliminado.",
+              variant: "destructive",
+            });
+          }
+        };
+        loadGist();
+      }
+    }, [toast]);
+
+    useEffect(() => {
+        // This effect also runs only on the client
         const params = new URLSearchParams(window.location.search);
-        const gistId = params.get('gist');
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
         const orientationParam = params.get('orientation') as 'portrait' | 'landscape' | null;
-
-        if (gistId) {
-            const loadGist = async () => {
-                try {
-                    const gistContent = await getGist(gistId);
-                    setCode(gistContent);
-                    setOutputCode(gistContent);
-                } catch (e) {
-                    console.error("Error loading from Gist", e);
-                    toast({
-                        title: "Error",
-                        description: "No se pudo cargar el código desde el Gist.",
-                        variant: "destructive",
-                    });
-                }
-            };
-            loadGist();
-        }
+        const pageSizeParam = params.get('size');
         
-        if (themeParam) {
-            setTheme(themeParam);
-        }
-        if (orientationParam) {
-            setOrientation(orientationParam);
-        }
-    }, [toast]);
+        if (themeParam) setTheme(themeParam);
+        if (orientationParam) setOrientation(orientationParam);
+        if (pageSizeParam) setPageSize(pageSizeParam);
+    }, []);
 
     useEffect(() => {
       document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -275,7 +284,7 @@ export default function CodeToPdf() {
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
-                format: 'a4',
+                format: pageSize,
                 compress: true,
             });
 
@@ -337,6 +346,7 @@ export default function CodeToPdf() {
             params.set('gist', gistId);
             params.set('theme', theme);
             params.set('orientation', orientation);
+            params.set('size', pageSize);
             const link = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
             setShareableLink(link);
             toast({
@@ -385,7 +395,7 @@ export default function CodeToPdf() {
         <div className="min-h-screen flex flex-col">
             <header className="text-center py-8">
                 <h1 className="text-4xl lg:text-5xl font-bold font-headline tracking-tight">Code2PDF</h1>
-                <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF vectoriales de alta calidad.</p>
+                <p className="text-muted-foreground mt-2 text-lg">Convierte tus fragmentos de código en hermosos PDF de alta calidad.</p>
             </header>
             <main className="container mx-auto p-4 flex-grow">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -429,22 +439,39 @@ export default function CodeToPdf() {
                                     </div>
                                 </div>
                                
-                                <div className="space-y-3">
-                                    <Label className="font-medium">Diseño del PDF</Label>
-                                    <RadioGroup
-                                        value={orientation}
-                                        onValueChange={(value: 'portrait' | 'landscape') => setOrientation(value)}
-                                        className="flex gap-4"
-                                    >
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="portrait" id="portrait" />
-                                            <Label htmlFor="portrait">Vertical</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="landscape" id="landscape" />
-                                            <Label htmlFor="landscape">Horizontal</Label>
-                                        </div>
-                                    </RadioGroup>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        <Label className="font-medium">Orientación</Label>
+                                        <RadioGroup
+                                            value={orientation}
+                                            onValueChange={(value: 'portrait' | 'landscape') => setOrientation(value)}
+                                            className="flex gap-4"
+                                        >
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="portrait" id="portrait" />
+                                                <Label htmlFor="portrait">Vertical</Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="landscape" id="landscape" />
+                                                <Label htmlFor="landscape">Horizontal</Label>
+                                            </div>
+                                        </RadioGroup>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <Label htmlFor="page-size" className="font-medium">Tamaño de Hoja</Label>
+                                        <Select value={pageSize} onValueChange={setPageSize}>
+                                            <SelectTrigger id="page-size">
+                                                <SelectValue placeholder="Selecciona un tamaño" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="a4">A4 (210 x 297 mm)</SelectItem>
+                                                <SelectItem value="letter">Carta (8.5 x 11 in)</SelectItem>
+                                                <SelectItem value="legal">Legal (8.5 x 14 in)</SelectItem>
+                                                <SelectItem value="a3">A3 (297 x 420 mm)</SelectItem>
+                                                <SelectItem value="a5">A5 (148 x 210 mm)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                                 
                                 <div className="space-y-3">
@@ -478,7 +505,7 @@ export default function CodeToPdf() {
                                         ) : (
                                             <Download className="mr-2 h-5 w-5" />
                                         )}
-                                        {isGenerating ? 'Generando PDF...' : 'Descargar PDF Vectorial'}
+                                        {isGenerating ? 'Generando PDF...' : 'Descargar PDF'}
                                     </Button>
                                 </div>
                            </CardHeader>
