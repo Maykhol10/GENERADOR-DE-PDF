@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef } from 'react';
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, RefreshCw, FileCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
@@ -205,7 +206,7 @@ export default function CodeToPdf() {
     const [code, setCode] = useState<string>(defaultCode);
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
-    const [isGenerating, setIsGenerating] = useState<boolean>(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     const { toast } = useToast();
     const [outputCode, setOutputCode] = useState(defaultCode);
     
@@ -215,11 +216,35 @@ export default function CodeToPdf() {
         setOutputCode(code);
     };
 
+    const handleDownloadHtml = () => {
+        try {
+            const blob = new Blob([code], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'code.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            toast({
+                title: "HTML Descargado",
+                description: "El código fuente ha sido descargado exitosamente.",
+            });
+        } catch (error) {
+            console.error("Error al descargar HTML:", error);
+            toast({
+                title: "Error al Descargar",
+                description: `Ocurrió un error: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+                variant: "destructive",
+            });
+        }
+    };
+
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
         
         try {
-            // Importar jsPDF con sus dependencias
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
 
@@ -228,27 +253,8 @@ export default function CodeToPdf() {
                 throw new Error("No se puede acceder al contenido del iframe");
             }
 
-            const iWindow = iframe.contentWindow;
-            const iDocument = iWindow.document;
+            const iDocument = iframe.contentWindow.document;
 
-            // Aplicar estilos al documento del iframe si es necesario
-            const styleMatch = code.match(/<style>([\s\S]*?)<\/style>/);
-            if (styleMatch) {
-                const styleContent = styleMatch[1];
-                let existingStyle = iDocument.querySelector('style[data-pdf-gen]');
-                if (existingStyle) {
-                    existingStyle.remove();
-                }
-                const styleEl = iDocument.createElement('style');
-                styleEl.setAttribute('data-pdf-gen', 'true');
-                styleEl.innerHTML = styleContent;
-                iDocument.head.appendChild(styleEl);
-            }
-            
-            // Esperar a que los estilos se apliquen
-            await new Promise(resolve => setTimeout(resolve, 200));
-
-            // Crear el PDF con configuración optimizada
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
@@ -257,31 +263,35 @@ export default function CodeToPdf() {
             });
 
             const pageWidth = pdf.internal.pageSize.getWidth();
+            const margin = 20;
+            const contentWidth = pageWidth - (margin * 2);
+
+            const sourceWidth = iDocument.body.scrollWidth;
             
-            // Configuración para renderizado de alta calidad
+            const scale = contentWidth / sourceWidth;
+
             const options = {
                 callback: function (doc: jsPDF) {
                     doc.save('code-output.pdf');
                     toast({
                         title: "PDF Generado",
-                        description: "Tu PDF ha sido descargado exitosamente con calidad vectorial.",
+                        description: "Tu PDF ha sido descargado exitosamente.",
                     });
                 },
-                x: 20,
-                y: 20,
-                width: pageWidth - 40, // Margen de 20pt en cada lado
-                windowWidth: iDocument.documentElement.scrollWidth,
+                margin: [margin, margin, margin, margin],
                 autoPaging: 'text',
                 html2canvas: {
-                    // Deshabilitamos html2canvas para forzar el renderizado vectorial
-                    allowTaint: false,
+                    allowTaint: true,
                     useCORS: true,
-                    scale: 1,
+                    scale: scale,
+                    removeContainer: true,
+                    imageTimeout: 0,
+                    logging: false,
+                    backgroundColor: '#ffffff'
                 },
             };
-
-            // Generar PDF usando el método html() que preserva la calidad vectorial
-            await pdf.html(iDocument.documentElement, options);
+            
+            await pdf.html(iDocument.body, options);
 
         } catch (error) {
             console.error("Error al generar PDF:", error);
@@ -296,8 +306,7 @@ export default function CodeToPdf() {
     };
 
     const handleThemeChange = (checked: boolean) => {
-        const newTheme = checked ? 'dark' : 'light';
-        setTheme(newTheme);
+        setTheme(checked ? 'dark' : 'light');
         document.documentElement.classList.toggle('dark', checked);
     };
 
@@ -383,14 +392,20 @@ export default function CodeToPdf() {
                         <Card className="shadow-lg h-full flex flex-col">
                            <CardHeader className="flex-row items-center justify-between border-b">
                                 <CardTitle className="text-xl">Vista Previa</CardTitle>
-                                <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
-                                    {isGenerating ? (
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <Download className="mr-2 h-5 w-5" />
-                                    )}
-                                    {isGenerating ? 'Generando PDF...' : 'Descargar PDF Vectorial'}
-                                </Button>
+                                <div className="flex flex-col items-end gap-2">
+                                    <Button onClick={handleDownloadHtml} variant="outline">
+                                        <FileCode className="mr-2 h-5 w-5" />
+                                        Descargar HTML
+                                    </Button>
+                                    <Button onClick={handleGeneratePdf} disabled={isGenerating} size="lg" className="shadow-md hover:shadow-lg transition-shadow">
+                                        {isGenerating ? (
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <Download className="mr-2 h-5 w-5" />
+                                        )}
+                                        {isGenerating ? 'Generando PDF...' : 'Descargar PDF Vectorial'}
+                                    </Button>
+                                </div>
                            </CardHeader>
                            <CardContent className="flex-grow p-4 md:p-6">
                                 <div className={`p-1 rounded-lg overflow-hidden transition-all duration-300 ${outputBg}`}>
