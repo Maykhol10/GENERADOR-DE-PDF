@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Loader2, Moon, Sun, RefreshCw } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Download, Loader2, Moon, Sun, RefreshCw, Link, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
 
@@ -207,10 +208,40 @@ export default function CodeToPdf() {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [shareableLink, setShareableLink] = useState('');
     const { toast } = useToast();
-    const [outputCode, setOutputCode] = useState(defaultCode);
+    const [outputCode, setOutputCode] = useState(code);
     
     const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const codeParam = params.get('code');
+        const themeParam = params.get('theme') as 'light' | 'dark' | null;
+        const orientationParam = params.get('orientation') as 'portrait' | 'landscape' | null;
+
+        if (codeParam) {
+            try {
+                const decodedCode = atob(codeParam);
+                setCode(decodedCode);
+                setOutputCode(decodedCode);
+            } catch (e) {
+                console.error("Error decoding code from URL", e);
+                toast({
+                    title: "Error",
+                    description: "No se pudo cargar el código desde el enlace.",
+                    variant: "destructive",
+                });
+            }
+        }
+        if (themeParam) {
+            setTheme(themeParam);
+            document.documentElement.classList.toggle('dark', themeParam === 'dark');
+        }
+        if (orientationParam) {
+            setOrientation(orientationParam);
+        }
+    }, [toast]);
 
     const handleUpdateCode = () => {
         setOutputCode(code);
@@ -218,33 +249,25 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
-        
         try {
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
-
             const iframe = iframeRef.current;
             if (!iframe?.contentWindow?.document?.body) {
                 throw new Error("No se puede acceder al contenido del iframe");
             }
-
             const iDocument = iframe.contentWindow.document;
-
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
                 format: 'a4',
                 compress: true
             });
-
             const pageWidth = pdf.internal.pageSize.getWidth();
             const margin = 20;
             const contentWidth = pageWidth - (margin * 2);
-
             const sourceWidth = iDocument.body.scrollWidth;
-            
             const scale = contentWidth / sourceWidth;
-
             const options = {
                 callback: function (doc: jsPDF) {
                     doc.save('code-output.pdf');
@@ -262,12 +285,10 @@ export default function CodeToPdf() {
                     removeContainer: true,
                     imageTimeout: 0,
                     logging: false,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: theme === 'light' ? '#ffffff' : '#1f2937'
                 },
             };
-            
             await pdf.html(iDocument.body, options);
-
         } catch (error) {
             console.error("Error al generar PDF:", error);
             toast({
@@ -281,8 +302,48 @@ export default function CodeToPdf() {
     };
 
     const handleThemeChange = (checked: boolean) => {
-        setTheme(checked ? 'dark' : 'light');
+        const newTheme = checked ? 'dark' : 'light';
+        setTheme(newTheme);
         document.documentElement.classList.toggle('dark', checked);
+    };
+
+    const handleGenerateLink = () => {
+        try {
+            const encodedCode = btoa(code);
+            const params = new URLSearchParams();
+            params.set('code', encodedCode);
+            params.set('theme', theme);
+            params.set('orientation', orientation);
+            const link = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            setShareableLink(link);
+            toast({
+                title: "Enlace generado",
+                description: "El enlace para compartir se ha creado y puedes copiarlo.",
+            });
+        } catch (error) {
+            console.error("Error creating shareable link:", error);
+            toast({
+                title: "Error",
+                description: "No se pudo crear el enlace para compartir.",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const handleCopyToClipboard = () => {
+        navigator.clipboard.writeText(shareableLink).then(() => {
+            toast({
+                title: "Copiado",
+                description: "Enlace copiado al portapapeles.",
+            });
+        }, (err) => {
+            console.error('Could not copy text: ', err);
+            toast({
+                title: "Error",
+                description: "No se pudo copiar el enlace.",
+                variant: "destructive",
+            });
+        });
     };
 
     const outputBg = theme === 'light' ? 'bg-white' : 'bg-gray-800';
@@ -319,8 +380,8 @@ export default function CodeToPdf() {
 
                         <Card className="shadow-lg">
                             <CardHeader>
-                                <CardTitle className="text-xl">Configuración</CardTitle>
-                                <CardDescription>Personaliza la apariencia de tu PDF de alta calidad.</CardDescription>
+                                <CardTitle className="text-xl">Configuración y Compartir</CardTitle>
+                                <CardDescription>Personaliza la apariencia y comparte tu PDF.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6 pt-4">
                                 <div className="flex items-center justify-between">
@@ -353,11 +414,22 @@ export default function CodeToPdf() {
                                         </div>
                                     </RadioGroup>
                                 </div>
-
-                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                                    <p className="text-sm text-blue-800">
-                                        <strong>✨ Calidad Mejorada:</strong> Ahora genera PDFs vectoriales con texto y gráficos nítidos, sin pixelación.
-                                    </p>
+                                
+                                <div className="space-y-3">
+                                    <Label className="font-medium">Compartir</Label>
+                                    <Button onClick={handleGenerateLink} className="w-full">
+                                        <Link className="mr-2 h-4 w-4" />
+                                        Generar Enlace para Compartir
+                                    </Button>
+                                    {shareableLink && (
+                                        <div className="flex gap-2">
+                                            <Input value={shareableLink} readOnly className="bg-muted" />
+                                            <Button onClick={handleCopyToClipboard} size="icon" variant="outline">
+                                                <Copy className="h-4 w-4" />
+                                                <span className="sr-only">Copiar enlace</span>
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -402,3 +474,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
