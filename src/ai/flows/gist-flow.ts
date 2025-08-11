@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Funciones para interactuar con la API de Gists de GitHub.
@@ -14,7 +15,7 @@
 export async function createGist(content: string): Promise<string> {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     if (!GITHUB_TOKEN || GITHUB_TOKEN === "TU_NUEVO_TOKEN_DE_GITHUB_VA_AQUÍ") {
-      throw new Error('401: GITHUB_TOKEN no está configurado en el servidor.');
+      throw new Error('401: GITHUB_TOKEN no está configurado. Revisa tu archivo .env.local.');
     }
 
     const response = await fetch('https://api.github.com/gists', {
