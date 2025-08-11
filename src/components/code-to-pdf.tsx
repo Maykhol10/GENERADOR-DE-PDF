@@ -19,7 +19,7 @@ import { createGist, getGist } from '@/ai/flows/gist-flow';
 const defaultCode = `
 <style>
     body {
-        font-family: Helvetica, Arial, sans-serif;
+        font-family: 'Inter', Helvetica, Arial, sans-serif;
         font-size: 10px;
         line-height: 1.4;
         color: #333;
@@ -204,6 +204,54 @@ const defaultCode = `
 </body>
 `.trim();
 
+async function fetchAsBase64(url: string) {
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
+    }
+    const ab = await res.arrayBuffer();
+    let binary = '';
+    const bytes = new Uint8Array(ab);
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+const ensureFontsAndStyles = async (iframe: HTMLIFrameElement) => {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) throw new Error('No se pudo acceder al documento del iframe.');
+
+    const basePath = (window as any).next?.router?.basePath || '';
+    
+    // Asumiendo que las fuentes están en /public/fonts/
+    // Debes agregar los archivos Inter-Regular.ttf y SourceCodePro-Regular.ttf a esa carpeta
+    const interB64 = await fetchAsBase64(`${basePath}/fonts/Inter-Regular.ttf`);
+    const sourceCodeProB64 = await fetchAsBase64(`${basePath}/fonts/SourceCodePro-Regular.ttf`);
+
+    const style = doc.createElement('style');
+    style.textContent = `
+    @font-face {
+      font-family: 'Inter';
+      src: url('data:font/ttf;base64,${interB64}') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Source Code Pro';
+      src: url('data:font/ttf;base64,${sourceCodeProB64}') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+  `;
+    doc.head.appendChild(style);
+
+    // Esperar a que las fuentes estén cargadas y listas en el iframe
+    await (iframe.contentWindow as any).document.fonts.ready;
+    
+    return { interB64, sourceCodeProB64 };
+};
+
 
 export default function CodeToPdf() {
     const [code, setCode] = useState<string>(defaultCode);
@@ -219,10 +267,10 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const gistId = params.get('gist');
-        if (gistId) {
-            const loadGist = async () => {
+        const loadGistFromUrl = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const gistId = params.get('gist');
+            if (gistId) {
                 try {
                     const gistContent = await getGist(gistId);
                     setCode(gistContent);
@@ -239,11 +287,11 @@ export default function CodeToPdf() {
                         variant: "destructive",
                     });
                 }
-            };
-            loadGist();
-        }
+            }
+        };
+        loadGistFromUrl();
     }, [toast]);
-
+    
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
@@ -279,11 +327,9 @@ export default function CodeToPdf() {
         }
         
         try {
+            const { interB64, sourceCodeProB64 } = await ensureFontsAndStyles(iframe);
             await import('jspdf/dist/polyfills.es.js');
-            const { jsPDF } = await import('jspdf');
             
-            const iBody = iframe.contentWindow.document.body;
-
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
@@ -291,15 +337,26 @@ export default function CodeToPdf() {
                 compress: true,
             });
 
-            await pdf.html(iBody, {
+            pdf.addFileToVFS('Inter-Regular.ttf', interB64);
+            pdf.addFont('Inter-Regular.ttf', 'Inter', 'normal');
+            pdf.addFileToVFS('SourceCodePro-Regular.ttf', sourceCodeProB64);
+            pdf.addFont('SourceCodePro-Regular.ttf', 'Source Code Pro', 'normal');
+            pdf.setFont('Inter');
+
+            await pdf.html(iframe.contentWindow.document.body, {
                 callback: function (doc) {
                     doc.save('code-output.pdf');
                 },
                 x: 15,
                 y: 15,
                 width: pdf.internal.pageSize.getWidth() - 30,
-                windowWidth: iBody.scrollWidth,
+                windowWidth: iframe.contentWindow.document.documentElement.scrollWidth,
                 autoPaging: 'text',
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: false,
+                }
             });
             
             toast({
@@ -522,3 +579,5 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
+    
