@@ -6,7 +6,7 @@ on:
   push:
     branches: ["main"]
 
-  # Te permite ejecutar este flujo de trabajo manualmente desde la pestaña Actions
+  # Te permite ejecutar este flujo de trabajo manually desde la pestaña Actions
   workflow_dispatch:
 
 # Establece los permisos del GITHUB_TOKEN para permitir el despliegue en GitHub Pages
