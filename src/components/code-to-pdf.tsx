@@ -266,14 +266,21 @@ export default function CodeToPdf() {
 
     const handleGeneratePdf = async () => {
         setIsGenerating(true);
+        const iframe = iframeRef.current;
+
+        if (!iframe?.contentWindow?.document?.body) {
+            toast({
+                title: "Error de Renderizado",
+                description: "No se puede acceder al contenido del preview para generar el PDF.",
+                variant: "destructive",
+            });
+            setIsGenerating(false);
+            return;
+        }
+        
         try {
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
-            const iframe = iframeRef.current;
-
-            if (!iframe?.contentWindow?.document?.body) {
-                throw new Error("No se puede acceder al contenido del iframe");
-            }
             
             const iBody = iframe.contentWindow.document.body;
 
