@@ -10,9 +10,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Download, Loader2, Moon, Sun, RefreshCw, Link, Copy } from 'lucide-react';
+import { Download, Loader2, Moon, Sun, RefreshCw, Link, Copy, ServerCrash } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
+import { createGist, getGist } from '@/ai/flows/gist-flow';
 
 const defaultCode = `
 <style>
@@ -208,6 +209,7 @@ export default function CodeToPdf() {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
     const [shareableLink, setShareableLink] = useState('');
     const { toast } = useToast();
     const [outputCode, setOutputCode] = useState(code);
@@ -216,24 +218,28 @@ export default function CodeToPdf() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const codeParam = params.get('code');
+        const gistId = params.get('gist');
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
         const orientationParam = params.get('orientation') as 'portrait' | 'landscape' | null;
 
-        if (codeParam) {
-            try {
-                const decodedCode = atob(codeParam);
-                setCode(decodedCode);
-                setOutputCode(decodedCode);
-            } catch (e) {
-                console.error("Error decoding code from URL", e);
-                toast({
-                    title: "Error",
-                    description: "No se pudo cargar el código desde el enlace.",
-                    variant: "destructive",
-                });
-            }
+        if (gistId) {
+            const loadGist = async () => {
+                try {
+                    const gistContent = await getGist(gistId);
+                    setCode(gistContent);
+                    setOutputCode(gistContent);
+                } catch (e) {
+                    console.error("Error loading from Gist", e);
+                    toast({
+                        title: "Error",
+                        description: "No se pudo cargar el código desde el Gist.",
+                        variant: "destructive",
+                    });
+                }
+            };
+            loadGist();
         }
+        
         if (themeParam) {
             setTheme(themeParam);
             document.documentElement.classList.toggle('dark', themeParam === 'dark');
@@ -307,12 +313,15 @@ export default function CodeToPdf() {
         document.documentElement.classList.toggle('dark', checked);
     };
 
-    const handleGenerateLink = () => {
+    const handleGenerateLink = async () => {
+        setIsSharing(true);
         try {
-            // Codificar para manejar caracteres Unicode de forma segura
-            const encodedCode = btoa(unescape(encodeURIComponent(code)));
+            const gistId = await createGist(code);
+            if (!gistId) {
+                throw new Error("No se recibió un ID de Gist del servidor.");
+            }
             const params = new URLSearchParams();
-            params.set('code', encodedCode);
+            params.set('gist', gistId);
             params.set('theme', theme);
             params.set('orientation', orientation);
             const link = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
@@ -323,11 +332,20 @@ export default function CodeToPdf() {
             });
         } catch (error) {
             console.error("Error creating shareable link:", error);
+            let description = "No se pudo crear el enlace para compartir.";
+            if (error instanceof Error && error.message.includes('401')) {
+                description = "Error de autenticación. Revisa tu Token de GitHub en el archivo .env.local."
+            } else if (error instanceof Error && error.message.includes('Failed to fetch')) {
+                description = "No se pudo conectar con el servidor de GitHub. Revisa tu conexión."
+            }
             toast({
-                title: "Error",
-                description: "No se pudo crear el enlace para compartir.",
+                title: "Error al generar enlace",
+                description: description,
                 variant: "destructive",
+                icon: <ServerCrash />,
             });
+        } finally {
+            setIsSharing(false);
         }
     };
 
@@ -418,9 +436,9 @@ export default function CodeToPdf() {
                                 
                                 <div className="space-y-3">
                                     <Label className="font-medium">Compartir</Label>
-                                    <Button onClick={handleGenerateLink} className="w-full">
-                                        <Link className="mr-2 h-4 w-4" />
-                                        Generar Enlace para Compartir
+                                    <Button onClick={handleGenerateLink} className="w-full" disabled={isSharing}>
+                                        {isSharing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link className="mr-2 h-4 w-4" />}
+                                        {isSharing ? 'Generando Enlace...' : 'Generar Enlace para Compartir'}
                                     </Button>
                                     {shareableLink && (
                                         <div className="flex gap-2">
@@ -475,3 +493,4 @@ export default function CodeToPdf() {
         </div>
     );
 }
+
