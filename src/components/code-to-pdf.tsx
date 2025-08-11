@@ -219,34 +219,32 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-      // This effect runs only once on the client after hydration
-      const params = new URLSearchParams(window.location.search);
-      const gistId = params.get('gist');
-      if (gistId) {
-        const loadGist = async () => {
-          try {
-            const gistContent = await getGist(gistId);
-            setCode(gistContent);
-            setOutputCode(gistContent);
-            toast({
-              title: "Código Cargado",
-              description: "El código se ha cargado desde el Gist compartido.",
-            });
-          } catch (e) {
-            console.error("Error loading from Gist", e);
-            toast({
-              title: "Error de Carga",
-              description: "No se pudo cargar el código desde el Gist. Puede que sea inválido o haya sido eliminado.",
-              variant: "destructive",
-            });
-          }
-        };
-        loadGist();
-      }
+        const params = new URLSearchParams(window.location.search);
+        const gistId = params.get('gist');
+        if (gistId) {
+            const loadGist = async () => {
+                try {
+                    const gistContent = await getGist(gistId);
+                    setCode(gistContent);
+                    setOutputCode(gistContent);
+                    toast({
+                        title: "Código Cargado",
+                        description: "El código se ha cargado desde el Gist compartido.",
+                    });
+                } catch (e) {
+                    console.error("Error loading from Gist", e);
+                    toast({
+                        title: "Error de Carga",
+                        description: "No se pudo cargar el código desde el Gist. Puede que sea inválido o haya sido eliminado.",
+                        variant: "destructive",
+                    });
+                }
+            };
+            loadGist();
+        }
     }, [toast]);
 
     useEffect(() => {
-        // This effect also runs only on the client
         const params = new URLSearchParams(window.location.search);
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
         const orientationParam = params.get('orientation') as 'portrait' | 'landscape' | null;
@@ -271,15 +269,13 @@ export default function CodeToPdf() {
         try {
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
-            const html2canvas = (await import('html2canvas')).default;
             const iframe = iframeRef.current;
 
             if (!iframe?.contentWindow?.document?.body) {
                 throw new Error("No se puede acceder al contenido del iframe");
             }
-
-            const iDocument = iframe.contentWindow.document;
-            const iBody = iDocument.body;
+            
+            const iBody = iframe.contentWindow.document.body;
 
             const pdf = new jsPDF({
                 orientation: orientation,
@@ -288,34 +284,20 @@ export default function CodeToPdf() {
                 compress: true,
             });
 
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const margin = 20;
-
-            const contentWidth = iBody.scrollWidth;
-            const scale = (pageWidth - margin * 2) / contentWidth;
-            
-            const canvas = await html2canvas(iBody, {
-                allowTaint: true,
-                useCORS: true,
-                scale: scale,
-                width: contentWidth,
-                height: iBody.scrollHeight,
-                removeContainer: true,
-                imageTimeout: 0,
-                logging: false,
-                backgroundColor: theme === 'light' ? '#ffffff' : '#1f2937'
+            await pdf.html(iBody, {
+                callback: function (doc) {
+                    doc.save('code-output.pdf');
+                },
+                x: 15,
+                y: 15,
+                width: pdf.internal.pageSize.getWidth() - 30,
+                windowWidth: iBody.scrollWidth,
+                autoPaging: 'text',
             });
-
-            const imgData = canvas.toDataURL('image/png');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save('code-output.pdf');
             
             toast({
                 title: "PDF Generado",
-                description: "Tu PDF ha sido descargado exitosamente.",
+                description: "Tu PDF vectorial ha sido descargado exitosamente.",
             });
                 
         } catch (error) {
