@@ -217,7 +217,6 @@ export default function CodeToPdf() {
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
-        // This effect runs once on the client after hydration
         const params = new URLSearchParams(window.location.search);
         const gistId = params.get('gist');
         const themeParam = params.get('theme') as 'light' | 'dark' | null;
@@ -250,7 +249,6 @@ export default function CodeToPdf() {
     }, [toast]);
 
     useEffect(() => {
-      // This effect syncs the theme with the DOM
       document.documentElement.classList.toggle('dark', theme === 'dark');
     }, [theme]);
 
@@ -264,6 +262,7 @@ export default function CodeToPdf() {
         try {
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
+            const html2canvas = (await import('html2canvas')).default;
             const iframe = iframeRef.current;
 
             if (!iframe?.contentWindow?.document?.body) {
@@ -283,32 +282,33 @@ export default function CodeToPdf() {
             const pageWidth = pdf.internal.pageSize.getWidth();
             const margin = 20;
 
-            // Calculate scale to fit content width in PDF page width
             const contentWidth = iBody.scrollWidth;
             const scale = (pageWidth - margin * 2) / contentWidth;
-
-            await pdf.html(iBody, {
-                callback: (doc) => {
-                    doc.save('code-output.pdf');
-                    toast({
-                        title: "PDF Generado",
-                        description: "Tu PDF ha sido descargado exitosamente.",
-                    });
-                },
-                margin: [margin, margin, margin, margin],
-                autoPaging: false, 
-                html2canvas: {
-                    allowTaint: true,
-                    useCORS: true,
-                    scale: scale,
-                    width: contentWidth,
-                    height: iBody.scrollHeight,
-                    removeContainer: true,
-                    imageTimeout: 0,
-                    logging: false,
-                    backgroundColor: theme === 'light' ? '#ffffff' : '#1f2937'
-                },
+            
+            const canvas = await html2canvas(iBody, {
+                allowTaint: true,
+                useCORS: true,
+                scale: scale,
+                width: contentWidth,
+                height: iBody.scrollHeight,
+                removeContainer: true,
+                imageTimeout: 0,
+                logging: false,
+                backgroundColor: theme === 'light' ? '#ffffff' : '#1f2937'
             });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('code-output.pdf');
+            
+            toast({
+                title: "PDF Generado",
+                description: "Tu PDF ha sido descargado exitosamente.",
+            });
+                
         } catch (error) {
             console.error("Error al generar PDF:", error);
             toast({
@@ -506,5 +506,3 @@ export default function CodeToPdf() {
         </div>
     );
 }
-
-    
