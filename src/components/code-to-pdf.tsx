@@ -259,23 +259,33 @@ export default function CodeToPdf() {
             await import('jspdf/dist/polyfills.es.js');
             const { jsPDF } = await import('jspdf');
             const iframe = iframeRef.current;
+
             if (!iframe?.contentWindow?.document?.body) {
                 throw new Error("No se puede acceder al contenido del iframe");
             }
+
             const iDocument = iframe.contentWindow.document;
+            const iBody = iDocument.body;
+            const iHtml = iDocument.documentElement;
+
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'pt',
                 format: 'a4',
-                compress: true
+                compress: true,
             });
+
             const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
             const margin = 20;
-            const contentWidth = pageWidth - (margin * 2);
-            const sourceWidth = iDocument.body.scrollWidth;
-            const scale = contentWidth / sourceWidth;
-            const options = {
-                callback: function (doc: jsPDF) {
+
+            // Calculate scale to fit content width in PDF page width
+            const contentWidth = iBody.scrollWidth;
+            const scale = (pageWidth - margin * 2) / contentWidth;
+
+            await pdf.html(iBody, {
+                // Ensure the callback is properly awaited
+                callback: (doc) => {
                     doc.save('code-output.pdf');
                     toast({
                         title: "PDF Generado",
@@ -283,18 +293,22 @@ export default function CodeToPdf() {
                     });
                 },
                 margin: [margin, margin, margin, margin],
-                autoPaging: 'text',
+                // Crucially disable autoPaging, let html2canvas handle the full element
+                autoPaging: false, 
                 html2canvas: {
                     allowTaint: true,
                     useCORS: true,
+                    // Use the calculated scale
                     scale: scale,
+                    // Force html2canvas to use the full scrollable area
+                    width: contentWidth,
+                    height: iBody.scrollHeight,
                     removeContainer: true,
                     imageTimeout: 0,
                     logging: false,
                     backgroundColor: theme === 'light' ? '#ffffff' : '#1f2937'
                 },
-            };
-            await pdf.html(iDocument.body, options);
+            });
         } catch (error) {
             console.error("Error al generar PDF:", error);
             toast({
